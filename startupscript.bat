@@ -3,7 +3,7 @@
 SET Configfile="c:\windows\sysmonconfig.xml"
 IF EXIST %Configfile% GOTO END
 
-sysmon -u
+REM you can use sysmon -u in here for future version for it to unistall the old version before installing sysmon
 copy /z /y "\\UNCPATH\sysmonconfig.xml" "C:\windows\"
 copy /z /y "\\UNCPATH\sysmon.exe" "C:\windows\"
 
