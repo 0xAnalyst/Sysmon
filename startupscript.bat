@@ -8,6 +8,6 @@ copy /z /y "\\UNCPATH\sysmonconfig.xml" "C:\windows\"
 copy /z /y "\\UNCPATH\sysmon.exe" "C:\windows\"
 
 
-"C:\windows\sysmon.exe" /accepteula -i c:\windows\sysmonconfigV65.xml
+"C:\windows\sysmon.exe" /accepteula -i c:\windows\sysmonconfig.xml
 
 :End
