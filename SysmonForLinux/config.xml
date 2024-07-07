@@ -1,1 +1,458 @@
 
+<!--
+    SysmonForLinux
+
+    Copyright (c) Microsoft Corporation
+
+    All rights reserved.
+
+    MIT License
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the ""Software""), to deal in the Software without
+ restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom th
+e Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+ AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISI
+NG FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+Config is based on MSTIC config with GTFObins added...etc
+-->
+<Sysmon schemaversion="4.81">
+  <EventFiltering>
+    <!-- Event ID 1 == ProcessCreate -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessCreate onmatch="include">
+        <Rule name="TechniqueID=T1021.004,TechniqueName=Remote Services: SSH" groupRelation="and">
+          <Image condition="end with">ssh</Image>
+          <CommandLine condition="contains">ConnectTimeout=</CommandLine>
+          <CommandLine condition="contains">BatchMode=yes</CommandLine>
+          <CommandLine condition="contains">StrictHostKeyChecking=no</CommandLine>
+          <CommandLine condition="contains any">wget;curl</CommandLine>
+        </Rule>
+
+        <Rule name="TechniqueID=T1027.001,TechniqueName=Obfuscated Files or Information: Binary Padding" groupRelation="and">
+          <Image condition="is">/bin/dd</Image>
+          <CommandLine condition="contains all">dd;if=</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1033,TechniqueName=System Owner/User Discovery" groupRelation="or">
+          <CommandLine condition="contains">/var/run/utmp</CommandLine>
+          <CommandLine condition="contains">/var/log/btmp</CommandLine>
+          <CommandLine condition="contains">/var/log/wtmp</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1053.003,TechniqueName=Scheduled Task/Job: Cron" groupRelation="or">
+          <Image condition="end with">crontab</Image>
+        </Rule>
+        <Rule name="group_modification" groupRelation="or">
+         <Image condition="end with">groupmod</Image>
+         <Image condition="end with">addgroup</Image>
+         <Image condition="end with">groupadd</Image>
+       </Rule>
+       <Rule name="user_modification" groupRelation="or">
+         <Image condition="end with">usermod</Image>
+         <Image condition="end with">userdel</Image>
+       </Rule>
+       <Rule name="passwd_modification" groupRelation="or">
+         <Image condition="end with">passwd</Image>
+       </Rule>
+        <Rule name="TechniqueID=T1059.004,TechniqueName=Command and Scripting Interpreter: Unix Shell" groupRelation="or">
+          <Image condition="end with">/bin/bash</Image>
+          <Image condition="end with">/bin/dash</Image>
+          <Image condition="end with">/bin/sh</Image>
+          <ParentImage condition="end with">aa-exec</ParentImage>
+      <ParentImage condition="end with">ansible-playbook</ParentImage>
+      <ParentImage condition="end with">ansible-test</ParentImage>
+      <ParentImage condition="end with">aoss</ParentImage>
+      <ParentImage condition="end with">apt-get</ParentImage>
+      <ParentImage condition="end with">apt</ParentImage>
+      <ParentImage condition="end with">ash</ParentImage>
+      <ParentImage condition="end with">at</ParentImage>
+      <ParentImage condition="end with">awk</ParentImage>
+      <ParentImage condition="end with">aws</ParentImage>
+      <ParentImage condition="end with">batcat</ParentImage>
+      <ParentImage condition="end with">bconsole</ParentImage>
+      <ParentImage condition="end with">bundle</ParentImage>
+      <ParentImage condition="end with">bundler</ParentImage>
+      <ParentImage condition="end with">busctl</ParentImage>
+      <ParentImage condition="end with">busybox</ParentImage>
+      <ParentImage condition="end with">byebug</ParentImage>
+      <ParentImage condition="end with">c89</ParentImage>
+      <ParentImage condition="end with">c99</ParentImage>
+      <ParentImage condition="end with">cabal</ParentImage>
+      <ParentImage condition="end with">capsh</ParentImage>
+      <ParentImage condition="end with">cdist</ParentImage>
+      <ParentImage condition="end with">certbot</ParentImage>
+      <ParentImage condition="end with">check_by_ssh</ParentImage>
+      <ParentImage condition="end with">choom</ParentImage>
+      <ParentImage condition="end with">cobc</ParentImage>
+      <ParentImage condition="end with">composer</ParentImage>
+      <ParentImage condition="end with">cowsay</ParentImage>
+      <ParentImage condition="end with">cowthink</ParentImage>
+      <ParentImage condition="end with">cpan</ParentImage>
+      <ParentImage condition="end with">cpio</ParentImage>
+      <ParentImage condition="end with">cpulimit</ParentImage>
+      <ParentImage condition="end with">crash</ParentImage>
+      <ParentImage condition="end with">csh</ParentImage>
+      <ParentImage condition="end with">csvtool</ParentImage>
+      <ParentImage condition="end with">dc</ParentImage>
+      <ParentImage condition="end with">distcc</ParentImage>
+      <ParentImage condition="end with">dmesg</ParentImage>
+      <ParentImage condition="end with">dotnet</ParentImage>
+      <ParentImage condition="end with">dpkg</ParentImage>
+      <ParentImage condition="end with">dstat</ParentImage>
+      <ParentImage condition="end with">dvips</ParentImage>
+      <ParentImage condition="end with">easy_install</ParentImage>
+      <ParentImage condition="end with">eb</ParentImage>
+      <ParentImage condition="end with">ed</ParentImage>
+      <ParentImage condition="end with">elvish</ParentImage>
+      <ParentImage condition="end with">emacs</ParentImage>
+      <ParentImage condition="end with">enscript</ParentImage>
+      <ParentImage condition="end with">env</ParentImage>
+      <ParentImage condition="end with">ex</ParentImage>
+      <ParentImage condition="end with">expect</ParentImage>
+      <ParentImage condition="end with">facter</ParentImage>
+      <ParentImage condition="end with">find</ParentImage>
+      <ParentImage condition="end with">fish</ParentImage>
+      <ParentImage condition="end with">flock</ParentImage>
+      <ParentImage condition="end with">ftp</ParentImage>
+      <ParentImage condition="end with">gawk</ParentImage>
+      <ParentImage condition="end with">gcc</ParentImage>
+      <ParentImage condition="end with">gcloud</ParentImage>
+      <ParentImage condition="end with">gdb</ParentImage>
+      <ParentImage condition="end with">gem</ParentImage>
+      <ParentImage condition="end with">genie</ParentImage>
+      <ParentImage condition="end with">ghc</ParentImage>
+      <ParentImage condition="end with">ghci</ParentImage>
+      <ParentImage condition="end with">gimp</ParentImage>
+      <ParentImage condition="end with">ginsh</ParentImage>
+      <ParentImage condition="end with">git</ParentImage>
+      <ParentImage condition="end with">grc</ParentImage>
+      <ParentImage condition="end with">gtester</ParentImage>
+      <ParentImage condition="end with">hping3</ParentImage>
+      <ParentImage condition="end with">iftop</ParentImage>
+      <ParentImage condition="end with">ionice</ParentImage>
+      <ParentImage condition="end with">irb</ParentImage>
+      <ParentImage condition="end with">ispell</ParentImage>
+      <ParentImage condition="end with">jjs</ParentImage>
+      <ParentImage condition="end with">joe</ParentImage>
+      <ParentImage condition="end with">journalctl</ParentImage>
+      <ParentImage condition="end with">jrunscript</ParentImage>
+      <ParentImage condition="end with">jtag</ParentImage>
+      <ParentImage condition="end with">julia</ParentImage>
+      <ParentImage condition="end with">knife</ParentImage>
+      <ParentImage condition="end with">ksh</ParentImage>
+      <ParentImage condition="end with">latex</ParentImage>
+      <ParentImage condition="end with">latexmk</ParentImage>
+      <ParentImage condition="end with">ld.so</ParentImage>
+      <ParentImage condition="end with">less</ParentImage>
+      <ParentImage condition="end with">lftp</ParentImage>
+      <ParentImage condition="end with">loginctl</ParentImage>
+      <ParentImage condition="end with">logsave</ParentImage>
+      <ParentImage condition="end with">ltrace</ParentImage>
+      <ParentImage condition="end with">lua</ParentImage>
+      <ParentImage condition="end with">lualatex</ParentImage>
+      <ParentImage condition="end with">luatex</ParentImage>
+      <ParentImage condition="end with">mail</ParentImage>
+      <ParentImage condition="end with">make</ParentImage>
+      <ParentImage condition="end with">man</ParentImage>
+      <ParentImage condition="end with">mawk</ParentImage>
+      <ParentImage condition="end with">minicom</ParentImage>
+      <ParentImage condition="end with">more</ParentImage>
+      <ParentImage condition="end with">msfconsole</ParentImage>
+      <ParentImage condition="end with">msgfilter</ParentImage>
+      <ParentImage condition="end with">multitime</ParentImage>
+      <ParentImage condition="end with">mysql</ParentImage>
+      <ParentImage condition="end with">nano</ParentImage>
+      <ParentImage condition="end with">nawk</ParentImage>
+      <ParentImage condition="end with">ncdu</ParentImage>
+      <ParentImage condition="end with">ncftp</ParentImage>
+      <ParentImage condition="end with">neofetch</ParentImage>
+      <ParentImage condition="end with">nice</ParentImage>
+      <ParentImage condition="end with">nmap</ParentImage>
+      <ParentImage condition="end with">node</ParentImage>
+      <ParentImage condition="end with">nohup</ParentImage>
+      <ParentImage condition="end with">npm</ParentImage>
+      <ParentImage condition="end with">nroff</ParentImage>
+      <ParentImage condition="end with">nsenter</ParentImage>
+      <ParentImage condition="end with">octave</ParentImage>
+      <ParentImage condition="end with">openvpn</ParentImage>
+      <ParentImage condition="end with">pandoc</ParentImage>
+      <ParentImage condition="end with">pdb</ParentImage>
+      <ParentImage condition="end with">pdflatex</ParentImage>
+      <ParentImage condition="end with">pdftex</ParentImage>
+      <ParentImage condition="end with">perf</ParentImage>
+      <ParentImage condition="end with">perl</ParentImage>
+      <ParentImage condition="end with">perlbug</ParentImage>
+      <ParentImage condition="end with">pexec</ParentImage>
+      <ParentImage condition="end with">pg</ParentImage>
+      <ParentImage condition="end with">php</ParentImage>
+      <ParentImage condition="end with">pic</ParentImage>
+      <ParentImage condition="end with">pico</ParentImage>
+      <ParentImage condition="end with">pip</ParentImage>
+      <ParentImage condition="end with">posh</ParentImage>
+      <ParentImage condition="end with">pry</ParentImage>
+      <ParentImage condition="end with">psftp</ParentImage>
+      <ParentImage condition="end with">psql</ParentImage>
+      <ParentImage condition="end with">puppet</ParentImage>
+      <ParentImage condition="end with">pwsh</ParentImage>
+      <ParentImage condition="end with">python</ParentImage>
+      <ParentImage condition="end with">rake</ParentImage>
+      <ParentImage condition="end with">rc</ParentImage>
+      <ParentImage condition="end with">rlwrap</ParentImage>
+      <ParentImage condition="end with">rpm</ParentImage>
+      <ParentImage condition="end with">rpmdb</ParentImage>
+      <ParentImage condition="end with">rpmquery</ParentImage>
+      <ParentImage condition="end with">rpmverify</ParentImage>
+      <ParentImage condition="end with">rsync</ParentImage>
+      <ParentImage condition="end with">rtorrent</ParentImage>
+      <ParentImage condition="end with">ruby</ParentImage>
+      <ParentImage condition="end with">run-mailcap</ParentImage>
+      <ParentImage condition="end with">run-parts</ParentImage>
+      <ParentImage condition="end with">runscript</ParentImage>
+      <ParentImage condition="end with">rview</ParentImage>
+      <ParentImage condition="end with">rvim</ParentImage>
+      <ParentImage condition="end with">sash</ParentImage>
+      <ParentImage condition="end with">scanmem</ParentImage>
+      <ParentImage condition="end with">scp</ParentImage>
+      <ParentImage condition="end with">screen</ParentImage>
+      <ParentImage condition="end with">script</ParentImage>
+      <ParentImage condition="end with">scrot</ParentImage>
+      <ParentImage condition="end with">sed</ParentImage>
+      <ParentImage condition="end with">service</ParentImage>
+      <ParentImage condition="end with">setarch</ParentImage>
+      <ParentImage condition="end with">setlock</ParentImage>
+      <ParentImage condition="end with">sftp</ParentImage>
+      <ParentImage condition="end with">sg</ParentImage>
+      <ParentImage condition="end with">slsh</ParentImage>
+      <ParentImage condition="end with">smbclient</ParentImage>
+      <ParentImage condition="end with">socat</ParentImage>
+      <ParentImage condition="end with">softlimit</ParentImage>
+      <ParentImage condition="end with">split</ParentImage>
+      <ParentImage condition="end with">sqlite3</ParentImage>
+      <ParentImage condition="end with">sqlmap</ParentImage>
+      <ParentImage condition="end with">ssh-agent</ParentImage>
+      <ParentImage condition="end with">ssh</ParentImage>
+      <ParentImage condition="end with">sshpass</ParentImage>
+      <ParentImage condition="end with">start-stop-daemon</ParentImage>
+      <ParentImage condition="end with">stdbuf</ParentImage>
+      <ParentImage condition="end with">strace</ParentImage>
+      <ParentImage condition="end with">tar</ParentImage>
+      <ParentImage condition="end with">task</ParentImage>
+      <ParentImage condition="end with">taskset</ParentImage>
+      <ParentImage condition="end with">tasksh</ParentImage>
+      <ParentImage condition="end with">tclsh</ParentImage>
+      <ParentImage condition="end with">tdbtool</ParentImage>
+      <ParentImage condition="end with">telnet</ParentImage>
+      <ParentImage condition="end with">tex</ParentImage>
+      <ParentImage condition="end with">time</ParentImage>
+      <ParentImage condition="end with">timedatectl</ParentImage>
+      <ParentImage condition="end with">timeout</ParentImage>
+      <ParentImage condition="end with">tmate</ParentImage>
+      <ParentImage condition="end with">tmux</ParentImage>
+      <ParentImage condition="end with">top</ParentImage>
+      <ParentImage condition="end with">torify</ParentImage>
+      <ParentImage condition="end with">torsocks</ParentImage>
+      <ParentImage condition="end with">tshark</ParentImage>
+      <ParentImage condition="end with">unshare</ParentImage>
+      <ParentImage condition="end with">vagrant</ParentImage>
+      <ParentImage condition="end with">valgrind</ParentImage>
+      <ParentImage condition="end with">vi</ParentImage>
+      <ParentImage condition="end with">view</ParentImage>
+      <ParentImage condition="end with">vim</ParentImage>
+      <ParentImage condition="end with">vimdiff</ParentImage>
+      <ParentImage condition="end with">volatility</ParentImage>
+      <ParentImage condition="end with">watch</ParentImage>
+      <ParentImage condition="end with">wget</ParentImage>
+      <ParentImage condition="end with">wish</ParentImage>
+      <ParentImage condition="end with">xargs</ParentImage>
+      <ParentImage condition="end with">xdg-user-dir</ParentImage>
+      <ParentImage condition="end with">xdotool</ParentImage>
+      <ParentImage condition="end with">xelatex</ParentImage>
+      <ParentImage condition="end with">xetex</ParentImage>
+      <ParentImage condition="end with">yarn</ParentImage>
+      <ParentImage condition="end with">yash</ParentImage>
+      <ParentImage condition="end with">zathura</ParentImage>
+      <ParentImage condition="end with">zip</ParentImage>
+      <ParentImage condition="end with">zypper</ParentImage>
+
+
+        </Rule>
+        <Rule name="TechniqueID=T1070.006,TechniqueName=Indicator Removal on Host: Timestomp" groupRelation="and">
+          <Image condition="is">/bin/touch</Image>
+          <CommandLine condition="contains any">-r;--reference;-t;--time</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1087.001,TechniqueName=Account Discovery: Local Account" groupRelation="or">
+          <CommandLine condition="contains">/etc/passwd</CommandLine>
+          <CommandLine condition="contains">/etc/sudoers</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1105,TechniqueName=Ingress Tool Transfer" groupRelation="or">
+          <Image condition="end with">wget</Image>
+          <Image condition="end with">curl</Image>
+          <Image condition="end with">ftpget</Image>
+          <Image condition="end with">tftp</Image>
+          <Image condition="end with">lwp-download</Image>
+        </Rule>
+        <Rule name="TechniqueID=T1123,TechniqueName=Audio Capture" groupRelation="and">
+          <Image condition="contains">/bin/aplay</Image>
+          <CommandLine condition="contains">arecord</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1136.001,TechniqueName=Create Account: Local Account" groupRelation="or">
+          <Image condition="end with">useradd</Image>
+          <Image condition="end with">adduser</Image>
+        </Rule>
+        <Rule name="TechniqueID=T1203,TechniqueName=Exploitation for Client Execution" groupRelation="and">
+          <User condition="is">root</User>
+          <LogonId condition="is">0</LogonId>
+          <CurrentDirectory condition="is">/var/opt/microsoft/scx/tmp</CurrentDirectory>
+          <CommandLine condition="contains">/bin/sh</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1485,TechniqueName=Data Destruction" groupRelation="and">
+          <Image condition="is">/bin/dd</Image>
+          <CommandLine condition="contains all">dd;of=;if=</CommandLine>
+          <CommandLine condition="contains any">if=/dev/zero;if=/dev/null</CommandLine>
+        </Rule>
+        <Rule name="TechniqueID=T1505.003,TechniqueName=Server Software Component: Web Shell" groupRelation="and">
+          <Image condition="contains any">whoami;ifconfig;/usr/bin/ip;/bin/uname</Image>
+          <ParentImage condition="contains any">httpd;lighttpd;nginx;apache2;node;dash</ParentImage>
+        </Rule>
+        <Rule name="TechniqueID=T1543.002,TechniqueName=Create or Modify System Process: Systemd Service" groupRelation="or">
+          <Image condition="end with">systemd</Image>
+        </Rule>
+        <Rule name="TechniqueID=T1548.001,TechniqueName=Abuse Elevation Control Mechanism: Setuid and Setgid" groupRelation="or">
+          <Image condition="end with">chmod</Image>
+          <Image condition="end with">chown</Image>
+          <Image condition="end with">fchmod</Image>
+          <Image condition="end with">fchmodat</Image>
+          <Image condition="end with">fchown</Image>
+          <Image condition="end with">fchownat</Image>
+          <Image condition="end with">fremovexattr</Image>
+          <Image condition="end with">fsetxattr</Image>
+          <Image condition="end with">lchown</Image>
+          <Image condition="end with">lremovexattr</Image>
+          <Image condition="end with">lsetxattr</Image>
+          <Image condition="end with">removexattr</Image>
+          <Image condition="end with">setuid</Image>
+          <Image condition="end with">setgid</Image>
+          <Image condition="end with">setreuid</Image>
+          <Image condition="end with">setregid</Image>
+        </Rule>
+      </ProcessCreate>
+    </RuleGroup>
+    <!-- Event ID 3 == NetworkConnect Detected -->
+    <RuleGroup name="" groupRelation="or">
+      <NetworkConnect onmatch="include">
+        <Rule name="TechniqueID=T1105,TechniqueName=Ingress Tool Transfer" groupRelation="or">
+          <Image condition="end with">wget</Image>
+          <Image condition="end with">curl</Image>
+          <Image condition="end with">ftpget</Image>
+          <Image condition="end with">tftp</Image>
+          <Image condition="end with">lwp-download</Image>
+          <Image condition="end with">bash</Image>
+          <Image condition="end with">busybox</Image>
+          <Image condition="end with">cpan</Image>
+          <Image condition="end with">easy_install</Image>
+          <Image condition="end with">gdb</Image>
+          <Image condition="end with">gimp</Image>
+          <Image condition="end with">irb</Image>
+          <Image condition="end with">jjs</Image>
+          <Image condition="end with">jrunscript</Image>
+          <Image condition="end with">julia</Image>
+          <Image condition="end with">ksh</Image>
+          <Image condition="end with">nc</Image>
+          <Image condition="end with">node</Image>
+          <Image condition="end with">openssl</Image>
+          <Image condition="end with">perl</Image>
+          <Image condition="end with">php</Image>
+          <Image condition="end with">pip</Image>
+          <Image condition="end with">python</Image>
+          <Image condition="end with">ruby</Image>
+          <Image condition="end with">rview</Image>
+          <Image condition="end with">rvim</Image>
+          <Image condition="end with">socat</Image>
+          <Image condition="end with">socket</Image>
+          <Image condition="end with">telnet</Image>
+          <Image condition="end with">view</Image>
+          <Image condition="end with">vim</Image>
+          <Image condition="end with">vimdiff</Image>
+          <User condition="end with">www-data</User>  <!-- detects outgoing connections by www-data user -->
+        </Rule>
+        <Rule name="Java outgoing traffic log4shell" groupRelation="and">
+            <Protocol condition="is">tcp</Protocol>
+              <Image condition="end with">java</Image>
+          </Rule>
+      </NetworkConnect>
+    </RuleGroup>
+    <!-- Event ID 5 == ProcessTerminate -->
+    <RuleGroup name="" groupRelation="or">
+      <ProcessTerminate onmatch="include" />
+    </RuleGroup>
+    <!-- Event ID 9 == RawAccessRead -->
+    <RuleGroup name="" groupRelation="or">
+      <RawAccessRead onmatch="include" />
+    </RuleGroup>
+    <!-- Event ID 11 == FileCreate -->
+    <RuleGroup name="" groupRelation="or">
+      <FileCreate onmatch="include">
+        <Rule name="TechniqueID=T1037,TechniqueName=Boot or Logon Initialization Scripts" groupRelation="or">
+          <TargetFilename condition="begin with">/etc/init/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/init.d/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/rc.d/</TargetFilename>
+        </Rule>
+        <Rule name="TechniqueID=T1053.003,TechniqueName=Scheduled Task/Job: Cron" groupRelation="or">
+          <TargetFilename condition="is">/etc/cron.allow</TargetFilename>
+          <TargetFilename condition="is">/etc/cron.deny</TargetFilename>
+          <TargetFilename condition="is">/etc/crontab</TargetFilename>
+          <TargetFilename condition="begin with">/etc/cron.d/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/cron.daily/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/cron.hourly/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/cron.monthly/</TargetFilename>
+          <TargetFilename condition="begin with">/etc/cron.weekly/</TargetFilename>
+          <TargetFilename condition="begin with">/var/spool/cron/crontabs/</TargetFilename>
+        </Rule>
+        <Rule name="TechniqueID=T1105,TechniqueName=Ingress Tool Transfer" groupRelation="or">
+          <Image condition="end with">wget</Image>
+          <Image condition="end with">curl</Image>
+          <Image condition="end with">ftpget</Image>
+          <Image condition="end with">tftp</Image>
+          <Image condition="end with">lwp-download</Image>
+        </Rule>
+        <Rule name="TechniqueID=T1543.002,TechniqueName=Create or Modify System Process: Systemd Service" groupRelation="or">
+          <TargetFilename condition="begin with">/etc/systemd/system</TargetFilename>
+          <TargetFilename condition="begin with">/usr/lib/systemd/system</TargetFilename>
+          <TargetFilename condition="begin with">/run/systemd/system/</TargetFilename>
+          <TargetFilename condition="contains">/systemd/user/</TargetFilename>
+          <TargetFilename condition="begin with">/lib/systemd/system/</TargetFilename>
+        </Rule>
+        <Rule name="TechniqueID=T1098.004,TechniqueName=Account Manipulation: SSH Authorized Keys" groupRelation="or">
+          <TargetFilename condition="contains">authorized_keys</TargetFilename>
+          <TargetFilename condition="contains">.ssh</TargetFilename>
+        </Rule>
+        <Rule name="TechniqueID=T1546.004,TechniqueName=Event Triggered Execution: Unix Shell Configuration Modification" groupRelation="or">
+       <TargetFilename condition="begin with">/etc/profile.d/</TargetFilename>
+       <TargetFilename condition="is">/etc/profile</TargetFilename>
+       <TargetFilename condition="is">/etc/bash.bashrc</TargetFilename>
+       <TargetFilename condition="is">/etc/bash.bash_logout</TargetFilename>
+       <TargetFilename condition="end with">.bashrc</TargetFilename>
+       <TargetFilename condition="end with">.bash_profile</TargetFilename>
+       <TargetFilename condition="end with">.bash_login</TargetFilename>
+       <TargetFilename condition="end with">.profile</TargetFilename>
+       <TargetFilename condition="end with">.bash_logout</TargetFilename>
+   </Rule>
+   <Rule name="TechniqueID=T1037,TechniqueName=Boot or Logon Initialization Scripts: systemd-generators" groupRelation="or">
+    <TargetFilename condition="contains">/etc/systemd/system-generators/</TargetFilename>
+    <TargetFilename condition="contains">/usr/local/lib/systemd/system-generators/</TargetFilename>
+    <TargetFilename condition="contains">/lib/systemd/system-generators/</TargetFilename>
+    <TargetFilename condition="contains">/usr/lib/systemd/system-generators/</TargetFilename>
+    <TargetFilename condition="contains">/etc/systemd/user-generators/</TargetFilename>
+    <TargetFilename condition="contains">/usr/local/lib/systemd/user-generators/</TargetFilename>
+    <TargetFilename condition="contains">/usr/lib/systemd/user-generators/</TargetFilename>
+</Rule>
+      </FileCreate>
+    </RuleGroup>
+    <!--Event ID 23 == FileDelete -->
+    <RuleGroup name="" groupRelation="or">
+      <FileDelete onmatch="include" />
+    </RuleGroup>
+  </EventFiltering>
+</Sysmon>
