@@ -1,2 +1,2 @@
  # Live log view
- journalctl  -f | /opt/sysmon/sysmonLogView
+ ```journalctl  -f | /opt/sysmon/sysmonLogView```
