@@ -1,4 +1,3 @@
-
 <!--
     SysmonForLinux
 
@@ -17,6 +16,7 @@ e Software is furnished to do so, subject to the following conditions:
     THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
  AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISI
 NG FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 Config is based on MSTIC config with GTFObins added...etc
 -->
 <Sysmon schemaversion="4.81">
@@ -348,7 +348,7 @@ Config is based on MSTIC config with GTFObins added...etc
           <Image condition="end with">ftpget</Image>
           <Image condition="end with">tftp</Image>
           <Image condition="end with">lwp-download</Image>
-          <Image condition="end with">bash</Image>
+          <Image condition="end with">bash</Image> <!--https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/network_connection/net_connection_lnx_back_connect_shell_dev.yml-->
           <Image condition="end with">busybox</Image>
           <Image condition="end with">cpan</Image>
           <Image condition="end with">easy_install</Image>
@@ -376,6 +376,30 @@ Config is based on MSTIC config with GTFObins added...etc
           <Image condition="end with">vim</Image>
           <Image condition="end with">vimdiff</Image>
           <User condition="end with">www-data</User>  <!-- detects outgoing connections by www-data user -->
+        </Rule>
+        <Rule name="Crypto Miner Indicators" groupRelation="or">
+          <DestinationHostname condition="end with">pool.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">fr.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">de.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">sg.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">ca.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">us-west.minexmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">pool.supportxmr.com</DestinationHostname>
+          <DestinationHostname condition="end with">mine.c3pool.com</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-eu1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-eu2.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-us-east1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-us-west1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-asia1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-jp1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr-au1.nanopool.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr.2miners.com</DestinationHostname>
+          <DestinationHostname condition="end with">xmr.hashcity.org</DestinationHostname>
+          <DestinationHostname condition="end with">xmr.f2pool.com</DestinationHostname>
+          <DestinationHostname condition="end with">xmrpool.eu</DestinationHostname>
+          <DestinationHostname condition="end with">pool.hashvault.pro</DestinationHostname>
+          <DestinationHostname condition="end with">moneroocean.stream</DestinationHostname>
+          <DestinationHostname condition="end with">monerocean.stream</DestinationHostname>
         </Rule>
         <Rule name="Java outgoing traffic log4shell" groupRelation="and">
             <Protocol condition="is">tcp</Protocol>
