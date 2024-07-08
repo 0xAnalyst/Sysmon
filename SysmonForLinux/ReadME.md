@@ -1,7 +1,7 @@
 # Config File
 The config file is this repo is based on MSTIC config file we have added to it 
 * Sigma Rules for Linux Detections
-* GTFO Bins Detections
+* GTFOBins Detections
 * Malware research articles detection on Linux
  # Live log view
  ```journalctl  -f | /opt/sysmon/sysmonLogView```
