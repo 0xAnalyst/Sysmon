@@ -1,3 +1,5 @@
+# Config File
+
  # Live log view
  ```journalctl  -f | /opt/sysmon/sysmonLogView```
 
