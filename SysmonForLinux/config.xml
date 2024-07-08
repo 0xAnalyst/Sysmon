@@ -16,8 +16,8 @@ e Software is furnished to do so, subject to the following conditions:
     THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
  AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISI
 NG FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 Config is based on MSTIC config with GTFObins added...etc
+
 -->
 <Sysmon schemaversion="4.81">
   <EventFiltering>
@@ -275,8 +275,6 @@ Config is based on MSTIC config with GTFObins added...etc
       <ParentImage condition="end with">zathura</ParentImage>
       <ParentImage condition="end with">zip</ParentImage>
       <ParentImage condition="end with">zypper</ParentImage>
-
-
         </Rule>
         <Rule name="TechniqueID=T1070.006,TechniqueName=Indicator Removal on Host: Timestomp" groupRelation="and">
           <Image condition="is">/bin/touch</Image>
@@ -401,6 +399,18 @@ Config is based on MSTIC config with GTFObins added...etc
           <DestinationHostname condition="end with">moneroocean.stream</DestinationHostname>
           <DestinationHostname condition="end with">monerocean.stream</DestinationHostname>
         </Rule>
+        <Rule name="LocaltoNet Tunneling" groupRelation="or">  <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/network_connection/net_connection_lnx_domain_localtonet_tunnel.yml -->
+          <DestinationHostname condition="end with">localto.net</DestinationHostname>
+          <DestinationHostname condition="end with">localtonet.com</DestinationHostname>
+        </Rule>
+        <Rule name="Ngrok Tunneling" groupRelation="or">  <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/network_connection/net_connection_lnx_domain_localtonet_tunnel.yml -->
+          <DestinationHostname condition="end with">tunnel.us.ngrok.com</DestinationHostname>
+          <DestinationHostname condition="end with">tunnel.eu.ngrok.com</DestinationHostname>
+          <DestinationHostname condition="end with">tunnel.au.ngrok.com</DestinationHostname>
+          <DestinationHostname condition="end with">tunnel.sa.ngrok.com</DestinationHostname>
+          <DestinationHostname condition="end with">tunnel.jp.ngrok.com</DestinationHostname>
+          <DestinationHostname condition="end with">tunnel.in.ngrok.com</DestinationHostname>
+        </Rule>
         <Rule name="Java outgoing traffic log4shell" groupRelation="and">
             <Protocol condition="is">tcp</Protocol>
               <Image condition="end with">java</Image>
@@ -472,6 +482,12 @@ Config is based on MSTIC config with GTFObins added...etc
     <TargetFilename condition="contains">/usr/local/lib/systemd/user-generators/</TargetFilename>
     <TargetFilename condition="contains">/usr/lib/systemd/user-generators/</TargetFilename>
 </Rule>
+  <Rule name="Linux Doas Conf File Creation" groupRelation="or">   <!--https://research.splunk.com/endpoint/f6343e86-6e09-11ec-9376-acde48001122/ -->
+ <TargetFilename condition="end with">/etc/doas.conf</TargetFilename>
+  </Rule>
+  <Rule name="Persistence Via Sudoers.d Folder" groupRelation="or"> <!--https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/file_event/file_event_lnx_persistence_sudoers_files.yml -->
+    <TargetFilename condition="begin with">/etc/sudoers.d/</TargetFilename>
+     </Rule>
       </FileCreate>
     </RuleGroup>
     <!--Event ID 23 == FileDelete -->
