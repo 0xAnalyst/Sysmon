@@ -338,6 +338,10 @@ Config is based on MSTIC config with GTFObins added...etc
         <Rule name="Linux Base64 Encoded Shebang In CLI" groupRelation="or"> <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/process_creation/proc_creation_lnx_base64_shebang_cli.yml-->
           <CommandLine condition="contains any">IyEvYmluL2Jhc2;IyEvYmluL2Rhc2;IyEvYmluL3pza;IyEvYmluL2Zpc2;IyEvYmluL3No</CommandLine>
         </Rule>
+        <Rule name="BPFtrace and kprob tracing enabled" groupRelation="or"> <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/process_creation/proc_creation_lnx_bpf_kprob_tracing_enabled.yml -->
+          <CommandLine condition="contains all">bpftrace;--unsafe</CommandLine>
+          <CommandLine condition="contains all">kprobes;enable</CommandLine>
+        </Rule>
       </ProcessCreate>
     </RuleGroup>
     <!-- Event ID 3 == NetworkConnect Detected -->
