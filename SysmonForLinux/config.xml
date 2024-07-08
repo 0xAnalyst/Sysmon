@@ -488,6 +488,10 @@ Config is based on MSTIC config with GTFObins added...etc
   <Rule name="Persistence Via Sudoers.d Folder" groupRelation="or"> <!--https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/file_event/file_event_lnx_persistence_sudoers_files.yml -->
     <TargetFilename condition="begin with">/etc/sudoers.d/</TargetFilename>
      </Rule>
+     <Rule name="Triple Cross eBPF Rootkit" groupRelation="or"> <!--https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/file_event/file_event_lnx_triple_cross_rootkit_lock_file.yml -->
+        <TargetFilename condition="is">/tmp/rootlog</TargetFilename>
+        <TargetFilename condition="end with">ebpfbackdoor</TargetFilename>
+        </Rule>
       </FileCreate>
     </RuleGroup>
     <!--Event ID 23 == FileDelete -->
