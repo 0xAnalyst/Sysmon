@@ -342,6 +342,12 @@ Config is based on MSTIC config with GTFObins added...etc
           <CommandLine condition="contains all">bpftrace;--unsafe</CommandLine>
           <CommandLine condition="contains all">kprobes;enable</CommandLine>
         </Rule>
+        <Rule name="TechniqueID=attack.t1083,Capability Discovery" groupRelation="or"> <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/process_creation/proc_creation_lnx_capa_discovery.yml -->
+          <Image condition="end with">/getcap</Image>
+        </Rule>
+        <Rule name="TechniqueID=t1222.002,Chattr Remove Immutable File Attribute" groupRelation="or"> <!-- https://github.com/SigmaHQ/sigma/blob/0bb6f0c0d75ae3e1c37f9ab77d68f20cdb32ecd3/rules/linux/process_creation/proc_creation_lnx_chattr_immutable_removal.yml -->
+          <CommandLine condition="contains all">chattr;--unsafe</CommandLine>
+        </Rule>
       </ProcessCreate>
     </RuleGroup>
     <!-- Event ID 3 == NetworkConnect Detected -->
