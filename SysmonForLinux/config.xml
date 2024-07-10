@@ -352,6 +352,11 @@ Config is based on MSTIC config with GTFObins added...etc
                <Image condition="contains">xclip</Image>
                <CommandLine condition="contains all">-sel,clip,-o</CommandLine>
         </Rule>
+
+           <Rule name="Crypto Mining Detection" groupRelation="or">
+        <!-- Filter for specific FileName and ProcessCommandLine patterns -->
+                <CommandLine condition="contains any">--cpu-priority=;--donate-level=0;-o pool.;--nicehash;--algo=rx/0;stratum+tcp://;stratum+udp://;sh -c /sbin/modprobe msr allow_writes=on;LS1kb25hdGUtbGV2ZWw9;0tZG9uYXRlLWxldmVsP;tLWRvbmF0ZS1sZXZlbD;c3RyYXR1bSt0Y3A6Ly;N0cmF0dW0rdGNwOi8v;zdHJhdHVtK3RjcDovL;c3RyYXR1bSt1ZHA6Ly;N0cmF0dW0rdWRwOi8v;zdHJhdHVtK3VkcDovL;</CommandLine>
+           </Rule>
       </ProcessCreate>
     </RuleGroup>
     <!-- Event ID 3 == NetworkConnect Detected -->
