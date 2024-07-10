@@ -350,7 +350,7 @@ Config is based on MSTIC config with GTFObins added...etc
         </Rule>
            <Rule name="TechniqueID=attack.t1115,Clipboard Collection with Xclip Tool" groupRelation="and">
                <Image condition="contains">xclip</Image>
-               <CommandLine condition="contains all">-sel,clip,-o</CommandLine>
+               <CommandLine condition="contains all">-sel;clip;-o</CommandLine>
         </Rule>
 
            <Rule name="Crypto Mining Detection" groupRelation="or">
