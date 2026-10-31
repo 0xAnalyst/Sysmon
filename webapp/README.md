@@ -1,30 +1,55 @@
 # Sysmon Config Builder
 
-A browser-based editor for Sysmon configurations, targeting the latest Sysmon schema (**4.90**, Sysmon 15.x, event IDs 1–29) and Sysmon for Linux. It is a static site with no build step and no backend: config files never leave the browser.
+Live at **https://0xanalyst.github.io/Sysmon/**.
 
-Live at **https://0xanalyst.github.io/Sysmon/**. It starts from this repo's `sysmonv9.xml` and `SysmonForLinux/config.xml` and can import any other Sysmon XML.
+A browser-based workbench for building, testing and deploying Sysmon configurations. It targets the latest Sysmon schema (**4.90**, Sysmon 15.x, event IDs 1–29) and Sysmon for Linux. It is a static site with no backend: configs and log samples never leave your browser.
 
-## Features
+It starts from this repo's `sysmonv9.xml` and `SysmonForLinux/config.xml`, and imports any other Sysmon XML (SwiftOnSecurity, sysmon-modular, MSTIC…). Older schemas are upgraded.
 
-- **Presets**: the 0xAnalyst Windows config (MITRE/JPCERT/sysmon-modular) and Linux config (MSTIC + Sigma + GTFOBins), or a blank config.
-- **Import** any config by file or paste. Older schemas (3.x, 4.x) are upgraded to the target schema.
-- **Event editor**: for each event, choose *Not set / Off / Log all / Filtered*, then edit include and exclude rules. You can change the field, condition, value, `name=` (RuleName / MITRE tag) and comment, disable a rule without deleting it, move a rule between include and exclude, and filter the list.
-- **Compound rules**: `<Rule groupRelation="and|or">` blocks, as used in the Linux config.
-- **Exclusion wizard**: add the same process or folder exclusion to many events at once, with shortcuts for common AV/EDR and log agents. It only touches events that are already being logged, so it never switches an event on by accident.
-- **Starters for newer events** (DnsQuery, ProcessTampering, FileDeleteDetected, FileExecutableDetected, and others) for configs written before those events existed.
+## What it does
+
+### Configure
+- **Event editor**: set each event to *Not set / Off / Log all / Filtered* and edit its include and exclude rules. You can change the field, condition, value, `name=` (RuleName / MITRE tag) and comment, and use compound `<Rule groupRelation="and|or">` blocks. Rules can be disabled, moved between include and exclude, reordered by dragging, and filtered.
+- **Undo/redo** for every change, plus keyboard shortcuts (press `?` in the app).
+- **Detection modules**: curated, ATT&CK-tagged rule packs such as C2 named pipes, LOLBin network connections, LSASS dumping, registry persistence, ransomware prep, staging drops, DNS abuse and Linux persistence. Turning a module off removes exactly the rules it added. A module never narrows an event that already logs everything.
+- **Exclusion wizard**: add the same process or folder exclusion across many events, with shortcuts for common AV/EDR and log agents.
+- **Starters** for events added after older configs were written (DnsQuery, ProcessTampering, FileDeleteDetected, FileExecutableDetected…).
+- **Exact schema**: paste the output of `sysmon -s` from the binary you deploy, and field and event checks will match it exactly.
 - **Validation**:
-  - fields that don't exist for the event, and unknown conditions
-  - events that are too new for the chosen schema
-  - duplicate rules, and rules that are both included and excluded
-  - values with stray leading or trailing spaces
-  - **risky exclusions** in user-writable paths (`C:\Users`, `AppData`, `Temp`, `/tmp`…) where malware could hide
-- **Live XML preview** with copy, download, and the install/update commands.
-- **Lossless round-trip**: comments, section headings, `name=` tags and disabled rules are kept. Disabled rules are written as `<!-- DISABLED: ... -->` and come back as disabled when re-imported.
-- Your work is saved automatically in the browser's local storage.
+  - fields that don't belong to the event, and unknown conditions
+  - events that are too new for the target schema
+  - duplicate rules, and stray leading or trailing spaces
+  - revoked ATT&CK IDs in rule names
+  - **risky exclusions** in user-writable paths
 
-## Run locally
+### Analyze
+- **Event tester**: paste real events and see whether they are logged or dropped, and which rule decided. Edit fields to ask "what if". An **evasion check** tries a renamed binary, a copy in a user-writable folder, and an obfuscated command line, and flags any that would avoid logging. Accepted formats:
+  - Event Viewer XML
+  - `wevtutil` or `Get-WinEvent` output
+  - Sysmon for Linux syslog
+  - Splunk or Elastic JSON/CSV
+- **Log analysis**: load a sample of real logs to see:
+  - what this config would keep, per event and per day
+  - the noisiest processes, each with a safety rating (*safer / review / risky*) and a one-click exclusion
+  - which include rules never fired
+- **ATT&CK coverage**: a heatmap of techniques referenced by include rule names. Revoked IDs are mapped to their replacements. Click a technique to see its rules, or export an **ATT&CK Navigator layer**.
+- **Compare & merge**: diff against your last download, a preset or any XML. Pull rules across one by one or all at once, and export a Markdown diff for review.
 
-ES modules need to be served over HTTP. Opening `index.html` from disk won't work. Serve the **repo root** so the presets resolve:
+### Export
+- **Download** with an automatic changelog line in the header (`+12/-3 rules; ProcessAccess +9 …`) and a version bump.
+- **Share links**: the config is compressed into the URL itself, and nothing is uploaded.
+- **SIEM & Sigma**: for every named include rule, generate:
+  - Sigma rules rebuilt from the conditions, with ATT&CK tags
+  - Splunk SPL, Microsoft Sentinel KQL and Elastic queries that search on `RuleName`
+- **Deployment scripts**: each one installs Sysmon when missing, upgrades it when the binary changes, and reapplies the config only when its SHA256 changes. Available targets:
+  - GPO startup script (batch or PowerShell)
+  - Intune remediation (detection and remediation, with the config embedded)
+  - Linux shell script
+  - Ansible playbook
+
+## Develop
+
+ES modules need to be served over HTTP. Serve the **repo root** so the presets resolve:
 
 ```bash
 python3 -m http.server 8765
@@ -32,23 +57,41 @@ python3 -m http.server 8765
 
 Then open http://localhost:8765/webapp/.
 
-## Deployment
+Tests use Vitest with jsdom and need Node 22 or 24:
 
-`.github/workflows/pages.yml` publishes `webapp/` to GitHub Pages on every push to `master` that touches the app or the configs. It copies `sysmonv9.xml` and `SysmonForLinux/config.xml` into the site as presets, so the builder always offers the latest committed configs.
+```bash
+cd webapp && npm ci && npm test
+```
+
+## CI
+
+- **`.github/workflows/validate.yml`** runs on every change to the app or the configs, and weekly:
+  1. Unit tests.
+  2. Generates configs from the presets, from the presets plus every module and starter, and from a synthetic config that uses every event and every condition.
+  3. Installs the real Sysmon from Sysinternals on a Windows runner and applies each generated config.
+  4. Compares `sysmon -s` with the builder's schema and warns about new events, fields or conditions.
+
+  A Sysmon for Linux job does the same on Ubuntu. It is marked experimental because it depends on the runner kernel's eBPF support.
+- **`.github/workflows/pages.yml`** runs the tests, then publishes the app to GitHub Pages with the repo's current configs as presets.
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `js/schema.js` | Events, fields, conditions, options and schema history. Update this when Sysmon adds events. |
+| `js/schema.js` | Events, fields, conditions, options, schema history, and the `sysmon -s` loader |
 | `js/config.js` | XML parser and generator, and the config model |
+| `js/matcher.js` | Sysmon rule evaluation and event parsing (XML, JSON, CSV) |
 | `js/validate.js` | Validation rules |
-| `js/presets.js` | Presets, starter rules for newer events, and EDR/agent paths for the wizard |
-| `js/app.js` | UI |
-| `presets/*.xml` | Added at deploy time from the repo's configs |
+| `js/modules.js`, `js/presets.js` | Detection modules, presets, starters and EDR paths |
+| `js/attack.js`, `js/attack-data.js` | ATT&CK coverage. Regenerate the data with `scripts/build-attack.py` |
+| `js/diff.js`, `js/detections.js`, `js/deploy.js`, `js/share.js` | Diff/changelog, SIEM/Sigma, deployment scripts, share links |
+| `js/views/*.js` | One module per Analyze/Export page |
+| `scripts/` | CI helpers: config export, schema-drift check, ATT&CK data build |
+| `test/` | Vitest suites |
 
 ## Notes on semantics
 
-- The generator writes each event's include and exclude rules into its own `RuleGroup groupRelation="or"`. An imported `RuleGroup groupRelation="and"` becomes an AND `<Rule>`, so the behavior is unchanged.
-- In schema 3.x, filters without a RuleGroup ANDed different fields together. The importer warns about this when it upgrades an old config, so check exclusions that relied on it.
-- **Off** is written as an empty `onmatch="include"` (log nothing). **Log all** is written as an empty `onmatch="exclude"`. **Not set** leaves the event out, so Sysmon's default applies.
+- Each event's include and exclude rules are written into their own `RuleGroup groupRelation="or"`. An imported `RuleGroup groupRelation="and"` becomes an AND `<Rule>`, so the behavior is unchanged.
+- In schema 3.x, filters without a RuleGroup ANDed different fields together. The importer warns about this when upgrading.
+- **Off** is written as an empty `onmatch="include"`, **Log all** as an empty `onmatch="exclude"`, and **Not set** leaves the event out so Sysmon's default applies.
+- Disabled rules are written as `<!-- DISABLED: ... -->` comments and come back disabled when re-imported.

@@ -28,11 +28,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Unit tests
+        working-directory: webapp
+        run: |
+          npm ci
+          npm test
+
       - name: Assemble site
         run: |
           mkdir -p _site/presets
-          cp -R webapp/. _site/
-          rm -f _site/README.md
+          cp -R webapp/index.html webapp/css webapp/js _site/
           # Ship the repo's current configs as the app's presets.
           cp sysmonv9.xml _site/presets/windows.xml
           cp SysmonForLinux/config.xml _site/presets/linux.xml

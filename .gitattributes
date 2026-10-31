@@ -1,0 +1,2 @@
+# Batch labels and GOTO can misbehave with LF line endings.
+*.bat text eol=crlf

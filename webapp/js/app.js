@@ -1,37 +1,93 @@
-import { EVENTS, EVENT_BY_TAG, CONDITIONS, OPTIONS, SCHEMA_VERSIONS, LATEST, minSchemaForEvent, imageFieldFor } from './schema.js';
+import { EVENTS, EVENT_BY_TAG, CONDITIONS, OPTIONS, SCHEMA_VERSIONS, LATEST, BUILTIN, minSchemaForEvent, imageFieldFor, applyManifest } from './schema.js';
 import { newConfig, newCond, newRule, parseXml, generateXml, escapeXml, activeCount } from './config.js';
 import { validate } from './validate.js';
 import { PRESETS, STARTERS, PRODUCTS } from './presets.js';
+import { diffConfigs, changelogLine } from './diff.js';
+import { encodeShare, hasShare, decodeShare, clearShare } from './share.js';
+import * as tester from './views/tester.js';
+import * as logs from './views/logs.js';
+import * as coverageView from './views/coverage.js';
+import * as compare from './views/compare.js';
+import * as modulesView from './views/modules.js';
+import * as detectionsView from './views/detections.js';
+import * as deployView from './views/deploy.js';
 
 const STORE_KEY = 'sysmon-builder:v1';
+const SCHEMA_KEY = 'sysmon-builder:schema';
 const $ = (sel, root = document) => root.querySelector(sel);
 const h = escapeXml;
 
+const VIEWS = { tester, logs, coverage: coverageView, compare, modules: modulesView, detections: detectionsView, deploy: deployView };
+
 const state = {
   cfg: null,
+  baseline: null,        // JSON of the config at the last import / download, for the changelog
   view: 'overview',
   search: '',
   issues: [],
   notes: [],
+  undo: [],
+  redo: [],
+  typing: false,
+  customSchema: null,
   wizard: { values: '', match: 'begin with', events: null, comment: '' },
 };
 
 // ------------------------------------------------------------------ storage
 
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify({ cfg: state.cfg, view: state.view })); } catch { /* storage unavailable */ }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ cfg: state.cfg, view: state.view, baseline: state.baseline }));
+  } catch { /* storage unavailable or full */ }
 }
 function restore() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (!raw) return false;
-    const { cfg, view } = JSON.parse(raw);
+    const { cfg, view, baseline } = JSON.parse(raw);
     if (!cfg?.events) return false;
-    for (const e of EVENTS) cfg.events[e.tag] ||= { mode: 'unset', include: [], exclude: [] };
+    fillEvents(cfg);
     state.cfg = cfg;
+    state.baseline = baseline || JSON.stringify(cfg);
     state.view = view || 'overview';
     return true;
   } catch { return false; }
+}
+function fillEvents(cfg) {
+  for (const e of EVENTS) cfg.events[e.tag] ||= { mode: 'unset', include: [], exclude: [] };
+}
+function loadCustomSchema() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SCHEMA_KEY) || 'null');
+    if (s?.text) { state.customSchema = { ...applyManifest(s.text, s.platform), platform: s.platform }; }
+  } catch { /* ignore a bad stored schema */ }
+}
+
+// ------------------------------------------------------------------ undo / redo
+
+function commit() {
+  state.undo.push(JSON.stringify(state.cfg));
+  if (state.undo.length > 60) state.undo.shift();
+  state.redo = [];
+  updateUndoButtons();
+}
+function undo() {
+  if (!state.undo.length) return toast('Nothing to undo.');
+  state.redo.push(JSON.stringify(state.cfg));
+  state.cfg = JSON.parse(state.undo.pop());
+  fillEvents(state.cfg);
+  render();
+}
+function redo() {
+  if (!state.redo.length) return toast('Nothing to redo.');
+  state.undo.push(JSON.stringify(state.cfg));
+  state.cfg = JSON.parse(state.redo.pop());
+  fillEvents(state.cfg);
+  render();
+}
+function updateUndoButtons() {
+  $('#undo').disabled = !state.undo.length;
+  $('#redo').disabled = !state.redo.length;
 }
 
 // ------------------------------------------------------------------ helpers
@@ -41,7 +97,7 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => t.classList.remove('show'), 3200);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 3600);
 }
 
 function eventsForPlatform() {
@@ -66,24 +122,52 @@ function findItem(id) {
   return null;
 }
 
-function issuesFor(tag) {
-  return state.issues.filter(i => i.event === tag);
-}
-
+const issuesFor = tag => state.issues.filter(i => i.event === tag);
 function worstLevel(list) {
   if (list.some(i => i.level === 'error')) return 'error';
   if (list.some(i => i.level === 'warn')) return 'warn';
   return list.length ? 'info' : null;
 }
-
-function ruleCount(ev) {
-  return activeCount(ev.include) + activeCount(ev.exclude);
-}
-
+const ruleCount = ev => activeCount(ev.include) + activeCount(ev.exclude);
 function isNewEvent(tag) {
   const src = parseFloat(state.cfg.sourceSchema || '0');
   return src > 0 && parseFloat(minSchemaForEvent(EVENT_BY_TAG[tag].ids[0])) > src;
 }
+
+function downloadText(name, text, type = 'text/plain') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, what = 'Copied.') {
+  try { await navigator.clipboard.writeText(text); toast(what); } catch { toast('Clipboard is blocked here; use Download.'); }
+}
+
+async function fetchPreset(id) {
+  const p = PRESETS.find(x => x.id === id);
+  for (const file of p?.files || []) {
+    try {
+      const res = await fetch(file);
+      if (res.ok) return await res.text();
+    } catch { /* try the next location */ }
+  }
+  return null;
+}
+
+function jumpTo(tag, itemId) {
+  state.view = 'event:' + tag;
+  state.search = '';
+  render();
+  if (itemId) focusRow(itemId);
+}
+
+// Context handed to the view modules.
+const ctx = {
+  state, h, $, toast, commit, render: () => render(), refresh: () => refresh(), findItem, jumpTo, eventsForPlatform,
+  currentXml: () => currentXml(), downloadText, copyText, fetchPreset, PRESETS,
+};
 
 // ------------------------------------------------------------------ rendering: chrome
 
@@ -91,7 +175,7 @@ function renderTarget() {
   const c = state.cfg;
   const v = SCHEMA_VERSIONS.find(s => s.schema === c.schemaversion);
   $('#target-label').textContent = `${c.platform === 'linux' ? 'Linux' : 'Windows'} · schema ${c.schemaversion}` +
-    (c.platform === 'windows' && v ? ` · Sysmon ${v.sysmon}` : '');
+    (c.platform === 'windows' && v ? ` · Sysmon ${v.sysmon}` : '') + (state.customSchema ? ' · custom schema' : '');
 }
 
 function modePill(ev) {
@@ -101,23 +185,29 @@ function modePill(ev) {
   return `<span class="pill filtered">${ruleCount(ev)}</span>`;
 }
 
+const NAV = [
+  ['Configuration', [['overview', 'Overview & issues'], ['options', 'Global settings'], ['modules', 'Detection modules'], ['wizard', 'Exclusion wizard']]],
+  ['Analyze', [['tester', 'Event tester'], ['logs', 'Log analysis'], ['coverage', 'ATT&CK coverage'], ['compare', 'Compare & merge']]],
+  ['Export', [['detections', 'SIEM & Sigma'], ['deploy', 'Deployment scripts']]],
+];
+
 function renderSidebar() {
-  const nav = $('#sidebar');
   const counts = { error: 0, warn: 0, info: 0 };
   for (const i of state.issues) counts[i.level]++;
   const issuePill = counts.error ? `<span class="pill err">${counts.error}</span>` : counts.warn ? `<span class="pill warn">${counts.warn}</span>` : '<span class="pill">0</span>';
+  const item = (view, label, right = '') =>
+    `<button class="nav-item plain ${state.view === view ? 'active' : ''}" data-view="${view}"><span class="ename">${h(label)}</span>${right}</button>`;
 
-  const item = (view, label, right = '', cls = 'plain') =>
-    `<button class="nav-item ${cls} ${state.view === view ? 'active' : ''}" data-view="${view}">${label}${right}</button>`;
-
-  let html = '<h2>Configuration</h2>';
-  html += item('overview', '<span class="ename">Overview &amp; issues</span>', issuePill);
-  html += item('options', '<span class="ename">Global settings</span>');
-  if (state.cfg.platform === 'windows') html += item('wizard', '<span class="ename">Exclusion wizard</span>');
+  let html = '';
+  for (const [title, items] of NAV) {
+    html += `<h2>${title}</h2>`;
+    for (const [view, label] of items) {
+      if (view === 'wizard' && state.cfg.platform !== 'windows') continue;
+      html += item(view, label, view === 'overview' ? issuePill : '');
+    }
+  }
   html += '<h2>Events</h2>';
-  for (const e of EVENTS) {
-    const supported = e.platforms.includes(state.cfg.platform);
-    if (!supported) continue;
+  for (const e of eventsForPlatform()) {
     const ev = state.cfg.events[e.tag];
     const lvl = worstLevel(issuesFor(e.tag).filter(i => i.level !== 'info'));
     let right = modePill(ev);
@@ -126,15 +216,15 @@ function renderSidebar() {
     html += `<button class="nav-item ${state.view === 'event:' + e.tag ? 'active' : ''}" data-view="event:${e.tag}" title="${h(e.tag)}">
       <span class="eid">${e.ids.join(',')}</span><span class="ename">${h(e.title)}</span>${right}</button>`;
   }
-  nav.innerHTML = html;
+  $('#sidebar').innerHTML = html;
 }
 
 function highlight(xml) {
   return h(xml)
-    .replace(/&lt;!--[\s\S]*?--&gt;/g, m => `\u0001c${m}\u0002`)
+    .replace(/&lt;!--[\s\S]*?--&gt;/g, m => `\u0001${m}\u0002`)
     .replace(/(&lt;\/?)([\w]+)/g, (m, a, b) => `${a}<span class="t">${b}</span>`)
     .replace(/(\s)([\w]+)=(&quot;.*?&quot;)/g, '$1<span class="a">$2</span>=<span class="s">$3</span>')
-    .replace(/\u0001c([\s\S]*?)\u0002/g, (m, c) => `<span class="c">${c.replace(/<[^>]+>/g, '')}</span>`);
+    .replace(/\u0001([\s\S]*?)\u0002/g, (m, c) => `<span class="c">${c.replace(/<[^>]+>/g, '')}</span>`);
 }
 
 function currentXml() {
@@ -142,11 +232,11 @@ function currentXml() {
 }
 
 function renderPreview() {
-  const xml = currentXml();
-  $('#xml code').innerHTML = highlight(xml);
+  if ($('#layout').classList.contains('no-preview')) return;
+  $('#xml code').innerHTML = highlight(currentXml());
   const lin = state.cfg.platform === 'linux';
   $('#deploy').innerHTML = lin
-    ? `<p>Install / update on Linux:</p><code>sudo sysmon -accepteula -i sysmonconfig.xml</code><code>sudo sysmon -c sysmonconfig.xml</code>`
+    ? `<p>Install / update on Linux:</p><code>sudo sysmon -accepteula -i sysmonconfig-linux.xml</code><code>sudo sysmon -c sysmonconfig-linux.xml</code>`
     : `<p>Install / update on Windows (elevated):</p><code>Sysmon64.exe -accepteula -i sysmonconfig.xml</code><code>Sysmon64.exe -c sysmonconfig.xml</code>`;
 }
 
@@ -155,9 +245,10 @@ function refresh() {
   state.issues = validate(state.cfg);
   renderTarget();
   renderSidebar();
-  if (!$('#layout').classList.contains('no-preview')) renderPreview();
+  renderPreview();
   markRowIssues();
   if (state.view === 'overview') renderOverviewIssues();
+  updateUndoButtons();
   save();
 }
 const refreshSoon = (() => { let t; return () => { clearTimeout(t); t = setTimeout(refresh, 180); }; })();
@@ -167,7 +258,8 @@ function render() {
   renderTarget();
   renderSidebar();
   renderMain();
-  if (!$('#layout').classList.contains('no-preview')) renderPreview();
+  renderPreview();
+  updateUndoButtons();
   save();
 }
 
@@ -179,14 +271,35 @@ function renderMain() {
   if (kind === 'event' && EVENT_BY_TAG[tag]) main.innerHTML = eventView(tag);
   else if (kind === 'options') main.innerHTML = optionsView();
   else if (kind === 'wizard') main.innerHTML = wizardView();
-  else { main.innerHTML = overviewView(); renderOverviewIssues(); }
+  else if (VIEWS[kind]) main.innerHTML = notesHtml() + VIEWS[kind].html(ctx);
+  else { state.view = 'overview'; main.innerHTML = overviewView(); renderOverviewIssues(); }
   if (kind === 'event') { applySearch(); markRowIssues(); }
+  VIEWS[kind]?.after?.(ctx);
 }
 
 function notesHtml() {
   if (!state.notes.length) return '';
   return `<div class="callout info"><div>${state.notes.map(n => `<p>${h(n)}</p>`).join('')}</div>
     <button class="small" data-act="dismiss-notes">Dismiss</button></div>`;
+}
+
+// Rough volume when an event logs everything, for a typical workstation.
+const VOLUME = {
+  ProcessCreate: 'Medium', FileCreateTime: 'Medium', NetworkConnect: 'Very high', ProcessTerminate: 'Medium', DriverLoad: 'Low',
+  ImageLoad: 'Very high', CreateRemoteThread: 'Low', RawAccessRead: 'Low', ProcessAccess: 'Very high', FileCreate: 'Very high',
+  RegistryEvent: 'Very high', FileCreateStreamHash: 'Medium', PipeEvent: 'High', WmiEvent: 'Low', DnsQuery: 'High',
+  FileDelete: 'High + disk', ClipboardChange: 'Medium', ProcessTampering: 'Low', FileDeleteDetected: 'High',
+  FileBlockExecutable: 'Low', FileBlockShredding: 'Low', FileExecutableDetected: 'Low',
+};
+function volumeLabel(tag) {
+  const ev = state.cfg.events[tag];
+  const base = VOLUME[tag] || 'Unknown';
+  if (ev.mode === 'off') return ['None', 'off'];
+  if (ev.mode === 'unset') return ['Sysmon default', ''];
+  if (ev.mode === 'all') return [base, base.startsWith('Very') ? 'hot' : ''];
+  if (activeCount(ev.include)) return ['Low (include rules)', 'cool'];
+  if (activeCount(ev.exclude)) return [`${base}, minus exclusions`, base.startsWith('Very') ? 'warm' : ''];
+  return ['None', 'off'];
 }
 
 function overviewView() {
@@ -197,10 +310,11 @@ function overviewView() {
   const newOnes = evs.filter(e => c.events[e.tag].mode === 'unset' && isNewEvent(e.tag));
   const counts = { error: 0, warn: 0, info: 0 };
   for (const i of state.issues) counts[i.level]++;
+  const measured = logs.measuredVolume?.(ctx) || {};
 
   return `${notesHtml()}
     <header><h2>Overview</h2>
-    <p class="lede">Pick an event on the left to tune its include and exclude rules. Use the exclusion wizard to quiet your AV/EDR and agents across events at once. The XML on the right updates as you edit and is saved in this browser.</p></header>
+    <p class="lede">Pick an event on the left to tune its rules, or use the tools under Analyze to test the config against real events and logs. Everything stays in this browser; <kbd>?</kbd> shows keyboard shortcuts.</p></header>
     <div class="stats">
       <div class="stat"><b>${configured}/${evs.length}</b><span>events configured</span></div>
       <div class="stat"><b>${rules}</b><span>active rules</span></div>
@@ -209,6 +323,18 @@ function overviewView() {
     </div>
     ${newOnes.length ? `<div class="callout"><p><b>${newOnes.length} event type${newOnes.length > 1 ? 's' : ''} added since schema ${h(c.sourceSchema)}</b> are not configured: ${newOnes.map(e => h(e.tag)).join(', ')}.</p>
       <button class="small primary" data-act="apply-all-starters">Apply recommended starters</button></div>` : ''}
+    <h3>Events and expected volume</h3>
+    <div class="table-wrap"><table class="grid-table">
+      <thead><tr><th>ID</th><th>Event</th><th>Mode</th><th class="num">Include</th><th class="num">Exclude</th><th>Expected volume</th>${measured.perDay ? '<th class="num">Measured / day</th>' : ''}</tr></thead>
+      <tbody>${evs.map(e => {
+        const ev = c.events[e.tag];
+        const [vol, cls] = volumeLabel(e.tag);
+        const m = measured.perDay?.[e.tag];
+        return `<tr data-jump="${e.tag}"><td class="mono">${e.ids.join(',')}</td><td>${h(e.tag)}</td><td>${modePill(ev)}</td>
+          <td class="num">${ev.mode === 'filtered' ? activeCount(ev.include) : '–'}</td><td class="num">${ev.mode === 'filtered' ? activeCount(ev.exclude) : '–'}</td>
+          <td><span class="vol ${cls}">${vol}</span></td>${measured.perDay ? `<td class="num">${m === undefined ? '–' : Math.round(m).toLocaleString()}</td>` : ''}</tr>`;
+      }).join('')}</tbody></table></div>
+    <p class="mode-help">Expected volume is a rough guide for one workstation. Load a log sample under <a href="#" data-view="logs">Log analysis</a> to measure it.</p>
     <h3>Issues</h3><div class="issues" id="issue-list"></div>`;
 }
 
@@ -252,7 +378,7 @@ function eventView(tag) {
     return html;
   }
 
-  html += `<div class="toolbar"><input type="search" id="search" placeholder="Filter rules by value, field, comment…" value="${h(state.search)}">
+  html += `<div class="toolbar"><input type="search" id="search" placeholder="Filter rules by value, field, comment… ( / )" value="${h(state.search)}">
     <span class="count" id="search-count"></span></div>`;
   for (const onmatch of ['include', 'exclude']) {
     const list = ev[onmatch];
@@ -277,17 +403,31 @@ function condOptions(current) {
   return all.map(c => `<option ${c === current ? 'selected' : ''} title="${h(CONDITIONS.find(x => x.name === c)?.help || '')}">${h(c)}</option>`).join('');
 }
 
+// Big lists render each dropdown with only its current value; the full option list is
+// filled in when the dropdown is first focused or clicked.
+function fillLazySelect(ev) {
+  const sel = ev.target;
+  if (sel.tagName !== 'SELECT' || !sel.dataset.lazy) return;
+  const tag = state.view.startsWith('event:') ? state.view.slice(6) : null;
+  if (!tag) return;
+  sel.innerHTML = sel.dataset.lazy === 'field' ? fieldOptions(EVENT_BY_TAG[tag], sel.value) : condOptions(sel.value);
+  delete sel.dataset.lazy;
+}
+
 function sectionsHtml(item) {
   return (item.before || []).map((b, i) => `<div class="section" data-sec-of="${item.id}"><span>${h(b)}</span>
     <button class="ghost small" data-act="del-section" data-id="${item.id}" data-idx="${i}" title="Remove comment">✕</button></div>`).join('');
 }
 
+const grip = id => `<span class="grip" draggable="true" data-drag="${id}" title="Drag to reorder" aria-hidden="true">⋮⋮</span>`;
+
 function condHtml(c, e, inRule) {
   const showName = c.name || c.showName;
   return `${sectionsHtml(c)}<div class="row ${c.enabled ? '' : 'disabled'}" data-id="${c.id}">
+    ${grip(c.id)}
     <input class="on" type="checkbox" ${c.enabled ? 'checked' : ''} data-k="enabled" title="Enabled" aria-label="Enabled">
-    <select data-k="field" aria-label="Field">${fieldOptions(e, c.field)}</select>
-    <select data-k="condition" aria-label="Condition">${condOptions(c.condition)}</select>
+    <select data-k="field" data-lazy="field" aria-label="Field"><option selected>${h(c.field)}</option></select>
+    <select data-k="condition" data-lazy="condition" aria-label="Condition"><option selected>${h(c.condition)}</option></select>
     <input class="value" data-k="value" value="${h(c.value)}" spellcheck="false" aria-label="Value">
     <input class="note" data-k="comment" value="${h(c.comment)}" placeholder="comment" aria-label="Comment">
     <button class="icon" data-act="tag" data-id="${c.id}" title="RuleName tag (e.g. MITRE technique)">#</button>
@@ -300,7 +440,8 @@ function condHtml(c, e, inRule) {
 function itemHtml(it, e) {
   if (it.kind === 'cond') return condHtml(it, e, false);
   return `${sectionsHtml(it)}<div class="rule ${it.enabled ? '' : 'disabled'}" data-id="${it.id}">
-    <div class="rule-head row-like" data-id="${it.id}">
+    <div class="rule-head" data-id="${it.id}">
+      ${grip(it.id)}
       <input class="on" type="checkbox" ${it.enabled ? 'checked' : ''} data-k="enabled" aria-label="Rule enabled">
       <input class="rname" data-k="name" value="${h(it.name)}" placeholder="Rule name (e.g. TechniqueID=T1059)" aria-label="Rule name">
       <select data-k="relation" aria-label="Combine conditions with">
@@ -340,8 +481,7 @@ function applySearch() {
     const text = [...el.querySelectorAll('input, select')].map(i => i.value).join(' ').toLowerCase();
     const hit = !q || text.includes(q);
     el.hidden = !hit;
-    const id = el.dataset.id;
-    main.querySelectorAll(`[data-sec-of="${id}"]`).forEach(s => (s.hidden = !hit || !!q));
+    main.querySelectorAll(`[data-sec-of="${el.dataset.id}"]`).forEach(s => (s.hidden = !hit || !!q));
     if (hit) shown++;
   });
   const cnt = $('#search-count');
@@ -354,6 +494,7 @@ function optionsView() {
   const schemaOpts = SCHEMA_VERSIONS.slice().reverse().map(s =>
     `<option value="${s.schema}" ${s.schema === c.schemaversion ? 'selected' : ''}>${s.schema} (Sysmon ${s.sysmon})</option>`).join('');
   const custom = SCHEMA_VERSIONS.some(s => s.schema === c.schemaversion) ? '' : `<option selected>${h(c.schemaversion)}</option>`;
+  const cs = state.customSchema;
 
   const optField = o => {
     const v = c.options[o.tag];
@@ -373,17 +514,27 @@ function optionsView() {
     return `<div class="field"><label>${o.tag}</label><div>${input}<div class="help">${h(o.help)}</div></div></div>`;
   };
 
-  return `${notesHtml()}<header><h2>Global settings</h2><p class="lede">Top-level entries of the config, and the schema the XML is written for.</p></header>
+  return `${notesHtml()}<header><h2>Global settings</h2><p class="lede">Top-level entries of the config, the schema the XML is written for, and the file header.</p></header>
   <div class="form">
     <div class="field"><label>Platform</label><div><select id="platform">
       <option value="windows" ${c.platform === 'windows' ? 'selected' : ''}>Windows (Sysmon ${LATEST.windows.sysmon})</option>
       <option value="linux" ${c.platform === 'linux' ? 'selected' : ''}>Linux (Sysmon for Linux)</option></select>
       <div class="help">Events and settings that the platform does not support are left out of the output.</div></div></div>
     <div class="field"><label>Schema version</label><div><select id="schema">${custom}${schemaOpts}</select>
-      <div class="help">Use the newest schema your fleet's Sysmon binary supports. Latest: ${LATEST[c.platform].schema}. Run <code>sysmon -s</code> to check.</div></div></div>
+      <div class="help">Use the newest schema your fleet's Sysmon binary supports. Latest known: ${LATEST[c.platform].schema}.</div></div></div>
+    <div class="field"><label>Exact schema</label><div>
+      ${cs ? `<p class="help ok">Using the schema from <code>sysmon -s</code>: binary ${h(cs.binaryversion || '?')}, schema ${h(cs.schemaversion)}, ${cs.events} event types (${h(cs.platform)}).${cs.added.length ? ` New: ${h(cs.added.join(', '))}.` : ''}</p>
+        <button class="small" data-act="schema-clear">Go back to the built-in schema</button>`
+      : `<textarea id="schema-text" spellcheck="false" placeholder="Paste the output of: Sysmon64.exe -s"></textarea>
+        <div class="help">Paste the output of <code>sysmon -s</code> from the binary you deploy, so field and event checks match it exactly, including events newer than this builder knows.</div>
+        <button class="small" data-act="schema-apply">Use this schema</button>`}
+    </div></div>
     ${opts.map(optField).join('')}
     <div class="field"><label>Header comment</label><div><textarea id="header" spellcheck="false">${h(c.header)}</textarea>
       <div class="help">Written at the top of the file. Good place for version, owner and change notes.</div></div></div>
+    <div class="field"><label>Changelog</label><div>
+      <label><input type="checkbox" id="changelog" ${c.changelog !== false ? 'checked' : ''}> Add a changelog line to the header on each download</label>
+      <div class="help">Summarises rule changes since the last import or download, and bumps the config version (now v${c.version || 1}).</div></div></div>
   </div>`;
 }
 
@@ -420,12 +571,6 @@ function wizardView() {
 
 // ------------------------------------------------------------------ actions
 
-function setMode(tag, mode) {
-  const ev = state.cfg.events[tag];
-  ev.mode = mode;
-  render();
-}
-
 function applyStarter(tag) {
   const s = STARTERS[tag];
   if (!s) return;
@@ -437,7 +582,7 @@ function applyStarter(tag) {
 
 function addCond(tag, onmatch) {
   const e = EVENT_BY_TAG[tag];
-  const field = e.fields.find(f => /Image|TargetFilename|TargetObject|QueryName|PipeName/.test(f) && f !== 'RuleName') || e.fields[1];
+  const field = e.fields.find(f => /Image|TargetFilename|TargetObject|QueryName|PipeName/.test(f)) || e.fields[1];
   const c = newCond(field, 'is', '');
   state.cfg.events[tag][onmatch].unshift(c);
   render();
@@ -447,6 +592,7 @@ function addCond(tag, onmatch) {
 function focusRow(id) {
   const row = $(`#main [data-id="${id}"]`);
   if (!row) return;
+  row.hidden = false;
   row.scrollIntoView({ block: 'center' });
   row.classList.add('flash');
   (row.querySelector('input.value') || row.querySelector('input.rname'))?.focus();
@@ -457,6 +603,7 @@ function wizardApply() {
   const values = w.values.split('\n').map(s => s.trim()).filter(Boolean);
   if (!values.length) return toast('Add at least one process or folder.');
   if (!w.events.length) return toast('Select at least one event.');
+  commit();
   let added = 0;
   const touched = [], skipped = [];
   for (const tag of w.events) {
@@ -480,28 +627,26 @@ function wizardApply() {
 async function loadPreset(id) {
   const p = PRESETS.find(x => x.id === id);
   if (!p) return;
+  if (state.cfg) commit();
   if (p.platform) {
     state.cfg = newConfig(p.platform);
     state.notes = [];
-  } else {
-    for (const file of p.files) {
-      try {
-        const res = await fetch(file);
-        if (!res.ok) continue;
-        return importXml(await res.text(), p.note, false);
-      } catch { /* try the next location */ }
-    }
-    return toast(`Could not load the ${p.label} preset. Serve the repo over HTTP, not file://.`);
+    state.baseline = JSON.stringify(state.cfg);
+    state.view = 'overview';
+    render();
+    return toast(`Loaded: ${p.label}`);
   }
-  state.view = 'overview';
-  render();
-  toast(`Loaded: ${p.label}`);
+  const text = await fetchPreset(id);
+  if (text === null) return toast(`Could not load the ${p.label} preset. Serve the repo over HTTP, not file://.`);
+  importXml(text, p.note, false);
 }
 
 function importXml(text, note, announce = true) {
   try {
     const { config, notes } = parseXml(text);
+    if (state.cfg && announce) commit();
     state.cfg = config;
+    state.baseline = JSON.stringify(config);
     state.notes = note ? [note, ...notes] : notes;
     state.view = 'overview';
     state.search = '';
@@ -514,14 +659,70 @@ function importXml(text, note, announce = true) {
 }
 
 function download() {
-  const blob = new Blob([currentXml()], { type: 'application/xml' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = state.cfg.platform === 'linux' ? 'sysmonconfig-linux.xml' : 'sysmonconfig.xml';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const c = state.cfg;
+  if (c.changelog !== false && state.baseline) {
+    const d = diffConfigs(JSON.parse(state.baseline), c);
+    if (d.events.length || d.options.length) {
+      commit();
+      c.version = (c.version || 1) + 1;
+      let header = c.header || '';
+      if (!/^\s*Changelog:/m.test(header)) header = (header ? header.replace(/\s+$/, '') + '\n\n' : '') + '  Changelog:';
+      c.header = `${header}\n    ${changelogLine(d, c.version)}`;
+    }
+  }
+  downloadText(c.platform === 'linux' ? 'sysmonconfig-linux.xml' : 'sysmonconfig.xml', currentXml(), 'application/xml');
+  state.baseline = JSON.stringify(c);
+  render();
   const errs = state.issues.filter(i => i.level === 'error').length;
   if (errs) toast(`Downloaded, but there ${errs === 1 ? 'is 1 error' : `are ${errs} errors`}. Sysmon may reject the file.`);
+}
+
+async function share() {
+  try {
+    const url = await encodeShare(generateXml(state.cfg, { comments: true, keepDisabled: true }));
+    await copyText(url, `Share link copied (${Math.round(url.length / 1024)} KB). The config is inside the link; nothing is uploaded.`);
+  } catch (err) {
+    toast('Could not create a share link: ' + err.message);
+  }
+}
+
+// Drag and drop reordering within one list.
+let dragId = null;
+function onDragStart(ev) {
+  const g = ev.target.closest?.('[data-drag]');
+  if (!g) return;
+  dragId = g.dataset.drag;
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', dragId);
+  g.closest('.row, .rule')?.classList.add('dragging');
+}
+function dropTarget(ev) {
+  if (!dragId) return null;
+  const el = ev.target.closest?.('.row[data-id], .rule[data-id]');
+  if (!el || el.dataset.id === dragId) return null;
+  const a = findItem(dragId), b = findItem(el.dataset.id);
+  return a && b && a.list === b.list ? { el, a, b } : null;
+}
+function onDragOver(ev) {
+  const t = dropTarget(ev);
+  if (!t) return;
+  ev.preventDefault();
+  document.querySelectorAll('.drop-before').forEach(x => x.classList.remove('drop-before'));
+  t.el.classList.add('drop-before');
+}
+function onDrop(ev) {
+  const t = dropTarget(ev);
+  if (!t) return;
+  ev.preventDefault();
+  commit();
+  const [moved] = t.a.list.splice(t.a.index, 1);
+  t.a.list.splice(t.a.list.indexOf(t.b.item), 0, moved);
+  dragId = null;
+  render();
+}
+function onDragEnd() {
+  dragId = null;
+  document.querySelectorAll('.drop-before, .dragging').forEach(x => x.classList.remove('drop-before', 'dragging'));
 }
 
 // ------------------------------------------------------------------ events
@@ -529,6 +730,7 @@ function download() {
 function onClick(ev) {
   const nav = ev.target.closest('[data-view]');
   if (nav) {
+    ev.preventDefault();
     state.view = nav.dataset.view;
     state.search = '';
     render();
@@ -536,24 +738,24 @@ function onClick(ev) {
     return;
   }
   const jump = ev.target.closest('[data-jump]');
-  if (jump) {
-    if (jump.dataset.jump) {
-      state.view = 'event:' + jump.dataset.jump;
-      state.search = '';
-      render();
-      if (jump.dataset.item) focusRow(jump.dataset.item);
-    } else { state.view = 'options'; render(); }
+  if (jump && !ev.target.closest('[data-act]')) {
+    ev.preventDefault();
+    if (jump.dataset.jump) jumpTo(jump.dataset.jump, jump.dataset.item);
+    else { state.view = 'options'; render(); }
     return;
   }
   const btn = ev.target.closest('[data-act]');
   if (!btn) return;
   const act = btn.dataset.act;
+  const [kind] = state.view.split(':');
+  if (VIEWS[kind]?.click?.(act, btn, ctx)) return;
   const tag = state.view.startsWith('event:') ? state.view.slice(6) : null;
 
   switch (act) {
-    case 'mode': return setMode(tag, btn.dataset.mode);
-    case 'starter': applyStarter(tag); return render();
+    case 'mode': commit(); state.cfg.events[tag].mode = btn.dataset.mode; return render();
+    case 'starter': commit(); applyStarter(tag); return render();
     case 'apply-all-starters': {
+      commit();
       const done = [];
       for (const e of eventsForPlatform()) {
         if (state.cfg.events[e.tag].mode === 'unset' && isNewEvent(e.tag) && STARTERS[e.tag]) { applyStarter(e.tag); done.push(e.tag); }
@@ -562,8 +764,9 @@ function onClick(ev) {
       return toast(`Applied starters: ${done.join(', ') || 'none'}.`);
     }
     case 'dismiss-notes': state.notes = []; return render();
-    case 'add-cond': return addCond(tag, btn.dataset.onmatch);
+    case 'add-cond': commit(); return addCond(tag, btn.dataset.onmatch);
     case 'add-rule': {
+      commit();
       const r = newRule('and');
       const e = EVENT_BY_TAG[tag];
       r.conds.push(newCond(e.fields.includes('Image') ? 'Image' : e.fields[1], 'end with', ''));
@@ -572,6 +775,7 @@ function onClick(ev) {
       return focusRow(r.id);
     }
     case 'add-cond-in': {
+      commit();
       const f = findItem(btn.dataset.id);
       const c = newCond(f.item.conds[0]?.field || 'Image', 'is', '');
       f.item.conds.push(c);
@@ -581,16 +785,17 @@ function onClick(ev) {
     case 'del': {
       const f = findItem(btn.dataset.id);
       if (!f) return;
+      commit();
       const removed = f.list.splice(f.index, 1)[0];
       // Keep section comments by handing them to the next item.
       if (removed.before?.length && f.list[f.index]) f.list[f.index].before = [...removed.before, ...f.list[f.index].before];
-      state.lastDeleted = { ...f, removed };
       render();
-      return toast('Rule deleted.');
+      return toast('Rule deleted. Ctrl+Z to undo.');
     }
     case 'move': {
       const f = findItem(btn.dataset.id);
       if (!f || f.parent) return;
+      commit();
       f.list.splice(f.index, 1);
       const other = f.onmatch === 'include' ? 'exclude' : 'include';
       state.cfg.events[f.tag][other].unshift(f.item);
@@ -605,11 +810,12 @@ function onClick(ev) {
       return $(`#main .row[data-id="${f.item.id}"] .tagname input`)?.focus();
     }
     case 'del-section': {
-      const f = findItem(btn.dataset.id);
-      f.item.before.splice(+btn.dataset.idx, 1);
+      commit();
+      findItem(btn.dataset.id).item.before.splice(+btn.dataset.idx, 1);
       return render();
     }
     case 'hash': {
+      commit();
       const alg = btn.dataset.alg;
       let set = new Set((state.cfg.options.HashAlgorithms || '').split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
       if (alg === '*') set = set.has('*') ? new Set() : new Set(['*']);
@@ -627,6 +833,23 @@ function onClick(ev) {
       return renderMain();
     }
     case 'wizard-apply': return wizardApply();
+    case 'schema-apply': {
+      const text = $('#schema-text').value;
+      try {
+        const res = applyManifest(text, state.cfg.platform);
+        state.customSchema = { ...res, platform: state.cfg.platform };
+        try { localStorage.setItem(SCHEMA_KEY, JSON.stringify({ text, platform: state.cfg.platform })); } catch { /* not persisted */ }
+        fillEvents(state.cfg);
+        if (res.schemaversion) state.cfg.schemaversion = res.schemaversion;
+        render();
+        return toast(`Schema ${res.schemaversion} loaded: ${res.events} event types, ${res.changed.length} with different fields, ${res.added.length} new.`);
+      } catch (err) { return toast(err.message); }
+    }
+    case 'schema-clear':
+      try { localStorage.removeItem(SCHEMA_KEY); } catch { /* ignore */ }
+      state.cfg.schemaversion = BUILTIN[state.cfg.platform].schema;
+      save();
+      return location.reload();
   }
 }
 
@@ -635,8 +858,12 @@ function onInput(ev) {
   if (t.id === 'search') { state.search = t.value; return applySearch(); }
   if (t.id === 'wz-values') { state.wizard.values = t.value; return; }
   if (t.id === 'wz-comment') { state.wizard.comment = t.value; return; }
-  if (t.id === 'header') { state.cfg.header = t.value; return refreshSoon(); }
+  const [kind] = state.view.split(':');
+  if (VIEWS[kind]?.input?.(t, ctx)) return;
+  const beginTyping = () => { if (!state.typing) { commit(); state.typing = true; } };
+  if (t.id === 'header') { beginTyping(); state.cfg.header = t.value; return refreshSoon(); }
   if (t.dataset.opt && t.type !== 'checkbox' && t.tagName !== 'SELECT') {
+    beginTyping();
     state.cfg.options[t.dataset.opt] = t.value;
     return refreshSoon();
   }
@@ -645,50 +872,66 @@ function onInput(ev) {
   const holder = t.closest('[data-id]');
   const f = holder && findItem(holder.dataset.id);
   if (!f) return;
+  beginTyping();
   f.item[k] = t.value;
   refreshSoon();
 }
 
 function onChange(ev) {
   const t = ev.target;
+  state.typing = false;
+  const [kind] = state.view.split(':');
+  if (VIEWS[kind]?.change?.(t, ctx)) return;
   if (t.id === 'platform') {
+    commit();
     state.cfg.platform = t.value;
     state.cfg.schemaversion = LATEST[t.value].schema;
-    if (state.view.startsWith('event:') && !EVENT_BY_TAG[state.view.slice(6)].platforms.includes(t.value)) state.view = 'options';
     return render();
   }
-  if (t.id === 'schema') { state.cfg.schemaversion = t.value; return render(); }
+  if (t.id === 'schema') { commit(); state.cfg.schemaversion = t.value; return render(); }
+  if (t.id === 'changelog') { state.cfg.changelog = t.checked; return save(); }
   if (t.name === 'wz-match') { state.wizard.match = t.value; return; }
   if (t.name === 'wz-ev') {
     state.wizard.events = [...document.querySelectorAll('input[name="wz-ev"]:checked')].map(i => i.value);
     return;
   }
-  if (t.dataset.opt) {
+  if (t.dataset.opt && (t.type === 'checkbox' || t.tagName === 'SELECT')) {
+    commit();
     const v = t.type === 'checkbox' ? t.checked : t.value;
     if (v === '' || v === false) delete state.cfg.options[t.dataset.opt];
     else state.cfg.options[t.dataset.opt] = v;
     return refresh();
   }
   const k = t.dataset.k;
-  if (!k) return;
+  if (!k || (t.type !== 'checkbox' && t.tagName !== 'SELECT')) return;
   const holder = t.closest('[data-id]');
   const f = holder && findItem(holder.dataset.id);
   if (!f) return;
+  commit();
   if (k === 'enabled') {
     f.item.enabled = t.checked;
-    (t.closest('.row, .rule'))?.classList.toggle('disabled', !t.checked);
-    return refresh();
+    t.closest('.row, .rule')?.classList.toggle('disabled', !t.checked);
+  } else {
+    f.item[k] = t.value;
   }
-  f.item[k] = t.value;
-  if (k === 'field' || k === 'condition' || k === 'relation') refresh();
+  refresh();
 }
 
-function init() {
+function onKey(ev) {
+  const mod = ev.metaKey || ev.ctrlKey;
+  const inText = ev.target.matches?.('textarea') || (ev.target.matches?.('input') && !ev.target.closest('#main .row, #main .rule-head'));
+  if (mod && ev.key.toLowerCase() === 'z' && !inText) { ev.preventDefault(); return ev.shiftKey ? redo() : undo(); }
+  if (mod && ev.key.toLowerCase() === 'y' && !inText) { ev.preventDefault(); return redo(); }
+  if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); return download(); }
+  if (ev.target.matches?.('input, textarea, select')) return;
+  if (ev.key === '/') { const s = $('#search'); if (s) { ev.preventDefault(); s.focus(); } }
+  if (ev.key === '?') $('#keys-dialog').showModal();
+}
+
+async function init() {
+  loadCustomSchema();
   $('#preset').innerHTML = PRESETS.map(p => `<option value="${p.id}">${h(p.label)}</option>`).join('');
-  $('#load-preset').onclick = () => {
-    if (state.cfg && !confirm('Replace the current configuration?')) return;
-    loadPreset($('#preset').value);
-  };
+  $('#load-preset').onclick = () => loadPreset($('#preset').value);
   $('#import-file').onclick = () => $('#file-input').click();
   $('#file-input').onchange = async e => {
     const file = e.target.files[0];
@@ -699,13 +942,14 @@ function init() {
   $('#import-paste').onclick = () => { $('#paste-text').value = ''; dlg.showModal(); };
   dlg.addEventListener('close', () => { if (dlg.returnValue === 'ok' && $('#paste-text').value.trim()) importXml($('#paste-text').value, 'Imported pasted XML.'); });
   $('#download').onclick = download;
-  $('#copy').onclick = async () => {
-    try { await navigator.clipboard.writeText(currentXml()); toast('XML copied.'); } catch { toast('Clipboard is blocked here; use Download.'); }
-  };
+  $('#share').onclick = share;
+  $('#undo').onclick = undo;
+  $('#redo').onclick = redo;
+  $('#copy').onclick = () => copyText(currentXml(), 'XML copied.');
   $('#toggle-preview').onclick = () => {
     const off = $('#layout').classList.toggle('no-preview');
     $('#toggle-preview').setAttribute('aria-pressed', String(!off));
-    if (!off) renderPreview();
+    renderPreview();
   };
   $('#opt-comments').onchange = renderPreview;
   $('#opt-disabled').onchange = renderPreview;
@@ -713,12 +957,28 @@ function init() {
   document.addEventListener('click', onClick);
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
+  document.addEventListener('keydown', onKey);
+  document.addEventListener('focusin', fillLazySelect);
+  document.addEventListener('mousedown', fillLazySelect, true);
+  document.addEventListener('dragstart', onDragStart);
+  document.addEventListener('dragover', onDragOver);
+  document.addEventListener('drop', onDrop);
+  document.addEventListener('dragend', onDragEnd);
 
-  if (restore()) {
-    render();
-  } else {
-    loadPreset('windows');
+  const restored = restore();
+  if (hasShare()) {
+    try {
+      const xml = await decodeShare();
+      clearShare();
+      importXml(xml, restored ? 'Opened from a share link. Your previous config is one Ctrl+Z away.' : 'Opened from a share link.');
+      return;
+    } catch {
+      clearShare();
+      toast('The share link is damaged or incomplete.');
+    }
   }
+  if (restored) render();
+  else loadPreset('windows');
 }
 
 init();
