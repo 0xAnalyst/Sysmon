@@ -5,6 +5,8 @@ export const LATEST = {
   windows: { sysmon: '15.x', schema: '4.90' },
   linux: { sysmon: '1.x (Linux)', schema: '4.81' },
 };
+// LATEST can be overridden by a `sysmon -s` schema; BUILTIN keeps the shipped values.
+export const BUILTIN = JSON.parse(JSON.stringify(LATEST));
 
 // Schema versions a user can target, oldest first. `events` lists the event IDs
 // that became filterable in that release.
@@ -135,3 +137,58 @@ export const OPTIONS = [
   { tag: 'FieldSizes', type: 'text', platforms: ['windows', 'linux'], placeholder: 'CommandLine:1024,Image:256', help: 'Truncate field sizes, e.g. CommandLine:1024.' },
 ];
 export const OPTION_TAGS = OPTIONS.map(o => o.tag);
+
+// ------------------------------------------------------------------ `sysmon -s` schemas
+
+// Apply the schema printed by `sysmon -s` (the <manifest> XML) so field and event checks match
+// a specific Sysmon binary. Mutates EVENTS / EVENT_BY_TAG / CONDITIONS in place.
+// Returns { schemaversion, binaryversion, events, added: [tags], changed: [tags] }.
+export function applyManifest(text, platform) {
+  const start = text.indexOf('<manifest');
+  if (start < 0) throw new Error('No <manifest> found. Paste the full output of "sysmon -s".');
+  const end = text.lastIndexOf('</manifest>');
+  const doc = new DOMParser().parseFromString(text.slice(start, end + 11), 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('The sysmon -s output is not valid XML.');
+  const root = doc.documentElement;
+  const byTag = new Map();
+  for (const ev of root.getElementsByTagName('event')) {
+    const tag = ev.getAttribute('rulename');
+    if (!tag) continue;
+    const id = parseInt(ev.getAttribute('value'), 10);
+    const fields = [...ev.getElementsByTagName('data')].map(d => d.getAttribute('name'));
+    const cur = byTag.get(tag) || { ids: [], fields: [], title: ev.getAttribute('template') || tag };
+    cur.ids.push(id);
+    for (const f of fields) if (!cur.fields.includes(f)) cur.fields.push(f);
+    byTag.set(tag, cur);
+  }
+  if (!byTag.size) throw new Error('No filterable events found in the sysmon -s output.');
+  const added = [], changed = [];
+  for (const [tag, def] of byTag) {
+    const fields = def.fields.includes('RuleName') ? def.fields : ['RuleName', ...def.fields];
+    const e = EVENT_BY_TAG[tag];
+    if (e) {
+      if (fields.join() !== e.fields.join()) changed.push(tag);
+      e.fields = fields;
+      e.ids = def.ids;
+      if (!e.platforms.includes(platform)) e.platforms.push(platform);
+    } else {
+      const ne = { tag, ids: def.ids, title: def.title, platforms: [platform], fields, help: 'Added from your sysmon -s schema.' };
+      EVENTS.push(ne);
+      EVENT_BY_TAG[tag] = ne;
+      added.push(tag);
+    }
+  }
+  // Events the binary does not know about are unavailable on this platform.
+  for (const e of EVENTS) if (!byTag.has(e.tag)) e.platforms = e.platforms.filter(p => p !== platform);
+
+  const filters = [...root.getElementsByTagName('filter')].map(f => f.textContent.trim()).filter(Boolean);
+  for (const f of filters) if (!CONDITION_NAMES.includes(f)) { CONDITIONS.push({ name: f, help: 'From your sysmon -s schema' }); CONDITION_NAMES.push(f); }
+
+  const schemaversion = root.getAttribute('schemaversion') || '';
+  if (schemaversion && !SCHEMA_VERSIONS.some(v => v.schema === schemaversion)) {
+    SCHEMA_VERSIONS.push({ schema: schemaversion, sysmon: root.getAttribute('binaryversion') || '?', events: [] });
+    SCHEMA_VERSIONS.sort((a, b) => parseFloat(a.schema) - parseFloat(b.schema));
+  }
+  if (schemaversion) LATEST[platform] = { sysmon: root.getAttribute('binaryversion') || LATEST[platform].sysmon, schema: schemaversion };
+  return { schemaversion, binaryversion: root.getAttribute('binaryversion') || '', events: byTag.size, added, changed };
+}

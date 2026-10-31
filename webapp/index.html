@@ -18,6 +18,9 @@
       </div>
     </div>
     <div class="actions">
+      <button id="undo" class="ghost" title="Undo (Ctrl/⌘+Z)" aria-label="Undo" disabled>↶</button>
+      <button id="redo" class="ghost" title="Redo (Ctrl/⌘+Shift+Z)" aria-label="Redo" disabled>↷</button>
+      <span class="sep"></span>
       <label class="sr-only" for="preset">Start from</label>
       <select id="preset"></select>
       <button id="load-preset">Load</button>
@@ -27,7 +30,8 @@
       <input type="file" id="file-input" accept=".xml,text/xml" hidden>
       <span class="sep"></span>
       <button id="toggle-preview" aria-pressed="true">XML</button>
-      <button id="download" class="primary">Download</button>
+      <button id="share" title="Copy a link that contains this config">Share</button>
+      <button id="download" class="primary" title="Download (Ctrl/⌘+S)">Download</button>
     </div>
   </header>
 
@@ -55,6 +59,21 @@
         <button value="cancel">Cancel</button>
         <button value="ok" class="primary">Import</button>
       </div>
+    </form>
+  </dialog>
+
+  <dialog id="keys-dialog">
+    <form method="dialog">
+      <h2>Keyboard shortcuts</h2>
+      <table class="keys">
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>Z</kbd></td><td>Undo</td></tr>
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> or <kbd>Ctrl</kbd> <kbd>Y</kbd></td><td>Redo</td></tr>
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>S</kbd></td><td>Download the config</td></tr>
+        <tr><td><kbd>/</kbd></td><td>Filter rules in the current event</td></tr>
+        <tr><td><kbd>?</kbd></td><td>This help</td></tr>
+        <tr><td>Drag <span class="grip-sample">⋮⋮</span></td><td>Reorder rules within a list</td></tr>
+      </table>
+      <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
     </form>
   </dialog>
 

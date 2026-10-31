@@ -1,9 +1,10 @@
 // Config validation. Returns a list of { level: 'error'|'warn'|'info', event, itemId, msg }.
 
 import { EVENTS, EVENT_BY_TAG, CONDITIONS, CONDITION_NAMES, OPTIONS, minSchemaForEvent } from './schema.js';
+import { revokedIds } from './attack.js';
 
 // Locations a standard user can write to. Excluding by path there lets malware hide.
-const WRITABLE = [
+export const WRITABLE = [
   /^c:\\users\b/i, /\\appdata\\/i, /\\temp\\?/i, /\\downloads\\?/i, /^c:\\perflogs/i,
   /^c:\\windows\\tasks/i, /^c:\\windows\\tracing/i, /^\/tmp\b/, /^\/var\/tmp\b/, /^\/dev\/shm\b/, /^\/home\b/,
 ];
@@ -43,6 +44,10 @@ export function validate(cfg) {
           if (item.relation !== 'and' && item.relation !== 'or') add('error', e.tag, item.id, `Rule relation must be "and" or "or".`);
         }
         for (const c of conds) checkCond(e, c, onmatch, item, add);
+        for (const n of new Set([item.name, ...conds.map(c => c.name)].filter(Boolean))) {
+          const old = revokedIds(n);
+          if (old.length) add('info', e.tag, item.id, `Rule name uses revoked ATT&CK ID${old.length > 1 ? 's' : ''} ${old.map(([a, b]) => `${a} (now ${b})`).join(', ')}.`);
+        }
         if (item.kind === 'cond') {
           const k = `${item.field}|${item.condition}|${item.value.toLowerCase()}`;
           if (keys[onmatch].has(k)) add('warn', e.tag, item.id, `Duplicate ${onmatch} rule: ${item.field} ${item.condition} "${item.value}".`);

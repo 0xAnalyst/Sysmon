@@ -1,0 +1,126 @@
+name: Validate configs with real Sysmon
+
+on:
+  push:
+    paths:
+      - 'webapp/**'
+      - 'sysmonv9.xml'
+      - 'SysmonForLinux/config.xml'
+      - '.github/workflows/validate.yml'
+  pull_request:
+    paths:
+      - 'webapp/**'
+      - 'sysmonv9.xml'
+      - 'SysmonForLinux/config.xml'
+      - '.github/workflows/validate.yml'
+  schedule:
+    - cron: '0 6 * * 1'   # weekly, to notice new Sysmon releases and schema changes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests and generated configs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webapp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: node scripts/export-configs.mjs out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-configs
+          path: webapp/out
+
+  windows:
+    name: Sysmon for Windows accepts the configs
+    needs: unit
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: generated-configs
+          path: out
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+
+      - name: Download Sysmon from Sysinternals
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -UseBasicParsing https://download.sysinternals.com/files/Sysmon.zip -OutFile Sysmon.zip
+          Expand-Archive Sysmon.zip -DestinationPath sysmon
+          $sig = Get-AuthenticodeSignature sysmon\Sysmon64.exe
+          if ($sig.Status -ne 'Valid') { throw "Unexpected signature status: $($sig.Status)" }
+          "Sysmon $((Get-Item sysmon\Sysmon64.exe).VersionInfo.FileVersion)"
+
+      - name: Install Sysmon with the repo config
+        shell: pwsh
+        run: |
+          $out = & .\sysmon\Sysmon64.exe -accepteula -i out\windows-preset.xml 2>&1 | Out-String
+          $out
+          if ($LASTEXITCODE -ne 0 -or $out -match '(?i)\b(error|invalid|failed)\b') { throw 'Sysmon rejected windows-preset.xml' }
+
+      - name: Apply every generated Windows config
+        shell: pwsh
+        run: |
+          $failed = @()
+          foreach ($f in Get-ChildItem out\windows-*.xml) {
+            $out = & .\sysmon\Sysmon64.exe -c $f.FullName 2>&1 | Out-String
+            "== $($f.Name)"; $out
+            if ($LASTEXITCODE -ne 0 -or $out -match '(?i)\b(error|invalid|failed)\b') { $failed += $f.Name }
+          }
+          if ($failed) { throw "Sysmon rejected: $($failed -join ', ')" }
+
+      - name: Compare the builder's schema with this Sysmon
+        shell: pwsh
+        run: |
+          cmd /c "sysmon\Sysmon64.exe -s > sysmon-schema.xml"
+          Set-Location webapp
+          npm ci
+          node scripts/check-schema.mjs ..\sysmon-schema.xml
+
+      - name: Uninstall
+        if: always()
+        shell: pwsh
+        run: '& .\sysmon\Sysmon64.exe -u force'
+
+  linux:
+    name: Sysmon for Linux accepts the configs (experimental)
+    needs: unit
+    runs-on: ubuntu-22.04
+    # Sysmon for Linux needs eBPF support from the runner kernel; report but don't block.
+    continue-on-error: true
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: generated-configs
+          path: out
+      - name: Install Sysmon for Linux
+        run: |
+          wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb
+          sudo dpkg -i packages-microsoft-prod.deb
+          sudo apt-get update -q
+          sudo apt-get install -y sysmonforlinux
+      - name: Install and apply every generated Linux config
+        run: |
+          set -e
+          sudo sysmon -accepteula -i out/linux-preset.xml
+          for f in out/linux-*.xml; do
+            echo "== $f"
+            out=$(sudo sysmon -c "$f" 2>&1); echo "$out"
+            if echo "$out" | grep -qiE '\b(error|invalid|failed)\b'; then echo "::error::Sysmon rejected $f"; exit 1; fi
+          done
