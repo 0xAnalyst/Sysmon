@@ -34,8 +34,11 @@ Resolve-DnsName -Name 'example.com' -Type A -ErrorAction SilentlyContinue | Out-
 try { Invoke-WebRequest -UseBasicParsing -Uri 'https://example.com' -TimeoutSec 15 | Out-Null } catch { Write-Warning "Web request failed: $_" }
 
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$createdRun = -not (Test-Path $run)   # fresh profiles may not have the key yet
+if ($createdRun) { New-Item -Path $run -Force | Out-Null }
 New-ItemProperty -Path $run -Name $tag -Value 'C:\Windows\System32\calc.exe' -PropertyType String -Force | Out-Null
 Remove-ItemProperty -Path $run -Name $tag
+if ($createdRun) { Remove-Item -Path $run }
 
 $pipe = New-Object System.IO.Pipes.NamedPipeServerStream($tag)
 $pipe.Dispose()
