@@ -6,9 +6,16 @@ import { readFileSync } from 'node:fs';
 import { EVENTS, CONDITION_NAMES, LATEST } from '../js/schema.js';
 
 const buf = readFileSync(process.argv[2]);
-const text = buf[0] === 0xff && buf[1] === 0xfe ? buf.toString('utf16le') : buf.toString('utf8');
+// sysmon -s writes UTF-16LE, usually without a BOM, so look for the zero high bytes too.
+let zeros = 0;
+for (let i = 1; i < Math.min(buf.length, 4096); i += 2) if (buf[i] === 0) zeros++;
+const utf16 = (buf[0] === 0xff && buf[1] === 0xfe) || zeros > Math.min(buf.length, 4096) / 4;
+const text = (utf16 ? buf.toString('utf16le') : buf.toString('utf8')).replace(/^\uFEFF/, '');
 const start = text.indexOf('<manifest');
-if (start < 0) { console.log('::error::No <manifest> in the sysmon -s output'); process.exit(1); }
+if (start < 0) {
+  console.log(`::error::No <manifest> in the sysmon -s output (${buf.length} bytes, starts ${JSON.stringify(text.slice(0, 200))})`);
+  process.exit(1);
+}
 const doc = new DOMParser().parseFromString(text.slice(start, text.lastIndexOf('</manifest>') + 11), 'application/xml');
 const root = doc.documentElement;
 
