@@ -106,10 +106,20 @@ foreach ($drive in Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3') {
   $dir = "$($drive.DeviceID)\$archiveName"
   if (-not $archiveName -or -not (Test-Path -LiteralPath $dir)) { continue }
   if ($RemoveArchive) {
-    Invoke-Native { & takeown.exe /f $dir /r /d y } | Out-Null
+    # Sysmon protects the archive with a SYSTEM-only ACL: take ownership, replace the ACL with
+    # inherited defaults plus full control for Administrators, then delete.
+    Invoke-Native { & takeown.exe /f $dir /a /r /d y } | Out-Null
+    Invoke-Native { & icacls.exe $dir /reset /t /c /q } | Out-Null
     Invoke-Native { & icacls.exe $dir /grant '*S-1-5-32-544:(OI)(CI)F' /t /c /q } | Out-Null
-    Remove-Item -LiteralPath $dir -Recurse -Force
-    Write-Step "Removed $dir"
+    Get-ChildItem -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.Attributes = 'Normal' }
+    (Get-Item -LiteralPath $dir -Force).Attributes = 'Directory'
+    try {
+      Remove-Item -LiteralPath $dir -Recurse -Force
+      Write-Step "Removed $dir"
+    } catch {
+      Write-Warning "Could not remove $dir ($($_.Exception.Message)). Its ACL:"
+      Invoke-Native { & icacls.exe $dir } | ForEach-Object { Write-Warning $_ }
+    }
   } else {
     Write-Step "Left $dir in place (pass -RemoveArchive to delete it after it has been collected)"
   }
