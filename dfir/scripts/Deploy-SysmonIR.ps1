@@ -244,7 +244,7 @@ if (-not $SkipLogSizes) {
     if (-not $log) { continue }
     $want = [int64]$LogTargets[$name] * 1MB
     # Remember the original size only once, so a re-run never records our own values as "before".
-    if (-not ($state.logs.PSObject.Properties.Name -contains $name)) {
+    if ($null -eq $state.logs.PSObject.Properties[$name]) {
       $state.logs | Add-Member -NotePropertyName $name -NotePropertyValue ([pscustomobject]@{ maxBytesBefore = $log.MaximumSizeInBytes; enabledBefore = $log.IsEnabled })
     }
     if ($log.MaximumSizeInBytes -lt $want) { Invoke-Native { & wevtutil.exe sl $name "/ms:$want" } | Out-Null }
