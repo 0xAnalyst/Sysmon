@@ -1,0 +1,33 @@
+name: Missed detection / new rule
+description: The config does not log a technique it should.
+labels: [detection]
+body:
+  - type: dropdown
+    id: config
+    attributes:
+      label: Config
+      options: [Windows (sysmonv9.xml), Linux (SysmonForLinux/config.xml)]
+    validations: { required: true }
+  - type: input
+    id: technique
+    attributes:
+      label: ATT&CK technique
+      placeholder: e.g. T1547.001
+    validations: { required: true }
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What should be logged
+      description: The activity, and a reference (report, blog post, Atomic Red Team test) if you have one.
+    validations: { required: true }
+  - type: textarea
+    id: event
+    attributes:
+      label: Sample event
+      description: Optional. Sysmon event XML from a log-all config while reproducing the activity, sanitized.
+      render: xml
+  - type: textarea
+    id: rule
+    attributes:
+      label: Suggested rule
+      render: xml

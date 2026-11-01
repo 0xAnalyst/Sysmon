@@ -1,0 +1,49 @@
+name: Release
+
+# Push a tag such as v10.0 to publish a release. The configs are validated against the real
+# Sysmon first, and the release notes include the changelog from the Windows config header.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+
+  release:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect release files
+        run: |
+          mkdir dist
+          cp sysmonv9.xml dist/sysmon-windows.xml
+          cp SysmonForLinux/config.xml dist/sysmon-linux.xml
+          cp startupscript.bat dist/startupscript.bat
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      - name: Write release notes
+        run: |
+          {
+            echo "Tested against the latest Sysmon for Windows and Sysmon for Linux before publishing."
+            echo
+            echo "Tune these configs in the browser: https://0xanalyst.github.io/Sysmon/"
+            echo
+            echo "### Windows config changelog"
+            echo '```'
+            # The CHANGELOG block from the header comment of sysmonv9.xml.
+            sed -n '/^  CHANGELOG/,/^  REQUIRED:/p' sysmonv9.xml | sed '1d;$d'
+            echo '```'
+          } > notes.md
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes --verify-tag

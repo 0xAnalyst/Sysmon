@@ -5,7 +5,7 @@ import { revokedIds } from './attack.js';
 
 // Locations a standard user can write to. Excluding by path there lets malware hide.
 export const WRITABLE = [
-  /^c:\\users\b/i, /\\appdata\\/i, /\\temp\\?/i, /\\downloads\\?/i, /^c:\\perflogs/i,
+  /^c:\\users\b/i, /\\appdata\\/i, /(?<!\\driverstore)\\temp\\?/i, /\\downloads\\?/i, /^c:\\perflogs/i,
   /^c:\\windows\\tasks/i, /^c:\\windows\\tracing/i, /^\/tmp\b/, /^\/var\/tmp\b/, /^\/dev\/shm\b/, /^\/home\b/,
 ];
 const PATH_FIELDS = ['Image', 'ParentImage', 'SourceImage', 'TargetImage', 'ImageLoaded', 'TargetFilename'];
@@ -83,7 +83,9 @@ function checkCond(e, c, onmatch, item, add) {
   if (c.value === '') add('warn', e.tag, item.id, `${c.field} has an empty value${where}.`);
   const def = CONDITIONS.find(x => x.name === c.condition);
   if (def?.multi && !c.value.includes(';')) add('info', e.tag, item.id, `"${c.condition}" expects ;-separated values; "${c.value}" is a single value${where}.`);
-  if (c.value !== c.value.trim()) add('warn', e.tag, item.id, `Value "${c.value}" has leading/trailing spaces, so it will rarely match${where}.`);
+  // A leading space is almost always a typo. A trailing one can be deliberate ("Intel ").
+  if (c.value !== c.value.trimStart()) add('warn', e.tag, item.id, `Value "${c.value}" starts with a space, so it will rarely match${where}.`);
+  else if (c.value !== c.value.trimEnd()) add('info', e.tag, item.id, `Value "${c.value}" ends with a space; check that it is intended${where}.`);
 
   // Broad exclusions are an easy way for an attacker to stay invisible.
   if (onmatch === 'exclude' && item.kind === 'cond' && PATH_FIELDS.includes(c.field)) {

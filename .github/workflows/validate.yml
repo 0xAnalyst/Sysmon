@@ -7,15 +7,11 @@ on:
       - 'sysmonv9.xml'
       - 'SysmonForLinux/config.xml'
       - '.github/workflows/validate.yml'
-  pull_request:
-    paths:
-      - 'webapp/**'
-      - 'sysmonv9.xml'
-      - 'SysmonForLinux/config.xml'
-      - '.github/workflows/validate.yml'
+  pull_request:           # every PR, so these checks can be required on master
   schedule:
     - cron: '0 6 * * 1'   # weekly, to notice new Sysmon releases and schema changes
   workflow_dispatch:
+  workflow_call:          # release.yml runs the same checks before publishing
 
 permissions:
   contents: read
@@ -36,6 +32,8 @@ jobs:
           cache-dependency-path: webapp/package-lock.json
       - run: npm ci
       - run: npm test
+      - name: Lint the repo configs
+        run: node scripts/lint-config.mjs ../sysmonv9.xml ../SysmonForLinux/config.xml
       - run: node scripts/export-configs.mjs out
       - uses: actions/upload-artifact@v4
         with:
@@ -70,9 +68,9 @@ jobs:
       - name: Install Sysmon with the repo config
         shell: pwsh
         run: |
-          $out = & .\sysmon\Sysmon64.exe -accepteula -i out\windows-preset.xml 2>&1 | Out-String
+          $out = & .\sysmon\Sysmon64.exe -accepteula -i sysmonv9.xml 2>&1 | Out-String
           $out
-          if ($LASTEXITCODE -ne 0 -or $out -match '(?i)\b(error|invalid|failed)\b') { throw 'Sysmon rejected windows-preset.xml' }
+          if ($LASTEXITCODE -ne 0 -or $out -match '(?i)\b(error|invalid|failed)\b') { throw 'Sysmon rejected sysmonv9.xml' }
 
       - name: Apply every generated Windows config
         shell: pwsh
@@ -105,6 +103,7 @@ jobs:
     # Sysmon for Linux needs eBPF support from the runner kernel; report but don't block.
     continue-on-error: true
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: generated-configs
@@ -118,8 +117,8 @@ jobs:
       - name: Install and apply every generated Linux config
         run: |
           set -e
-          sudo sysmon -accepteula -i out/linux-preset.xml
-          for f in out/linux-*.xml; do
+          sudo sysmon -accepteula -i SysmonForLinux/config.xml
+          for f in SysmonForLinux/config.xml out/linux-*.xml; do
             echo "== $f"
             out=$(sudo sysmon -c "$f" 2>&1); echo "$out"
             if echo "$out" | grep -qiE '\b(error|invalid|failed)\b'; then echo "::error::Sysmon rejected $f"; exit 1; fi

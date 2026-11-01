@@ -1,0 +1,33 @@
+name: Noisy event / false positive
+description: The config logs too much of something harmless.
+labels: [false-positive]
+body:
+  - type: dropdown
+    id: config
+    attributes:
+      label: Config
+      options: [Windows (sysmonv9.xml), Linux (SysmonForLinux/config.xml)]
+    validations: { required: true }
+  - type: input
+    id: software
+    attributes:
+      label: Software causing the noise
+      placeholder: e.g. CrowdStrike Falcon 7.x, Veeam agent
+    validations: { required: true }
+  - type: textarea
+    id: event
+    attributes:
+      label: Sample event
+      description: Event XML from Event Viewer or `Get-WinEvent`. Remove hostnames, usernames and anything sensitive.
+      render: xml
+    validations: { required: true }
+  - type: input
+    id: volume
+    attributes:
+      label: Rough volume
+      placeholder: e.g. 2,000 events per host per day
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested exclusion
+      description: Optional. Prefer a full path or a narrow command-line match over a binary name.
