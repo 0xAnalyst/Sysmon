@@ -4,13 +4,22 @@
   Master author:	@SwiftOnSecurity, other contributors also credited in-line
   Master project:	https://github.com/SwiftOnSecurity/sysmon-config
   Master license:	Creative Commons Attribution 4.0 | You may privatize, fork, edit, teach, publish, or deploy for commercial use - with attribution in the text.
-  Fork version:	<N/A>
-  Fork author:	<N/A>
-  Fork project:	<N/A>
-  Fork license:	<N/A>
- 
-  REQUIRED: Sysmon version 9.00 or higher 
-	https://blogs.technet.microsoft.com/sysinternals/2019/02/19/sysmon-v9-0-autoruns-v13-94/
+  Fork version:	10.0 | Date: 2026-11-01
+  Fork author:	0xAnalyst (@0xAnalyst)
+  Fork project:	https://github.com/0xAnalyst/Sysmon
+  Fork license:	Creative Commons Attribution 4.0
+  Fork sources:	JPCERT tool analysis (https://jpcertcc.github.io/ToolAnalysisResultSheet/),
+		sysmon-modular by Olaf Hartong (MIT), Sigma rules (Detection Rule License). See NOTICE in the repo.
+  Fork changes:	Detections mapped to MITRE ATT&CK and JPCERT. Tune and test it at https://0xanalyst.github.io/Sysmon/
+
+  CHANGELOG
+	10.0 (2026-11-01): Removed 64 duplicate rules. Fixed a leading space that stopped the wermgr exclusion from matching.
+		Updated 57 rule names from revoked ATT&CK IDs to current ones (Enterprise ATT&CK v20.0), and named two
+		untagged rules (PsShutDown, PsSuspend). No detection or exclusion was added or removed.
+	9.0 (2019-03-11): Initial fork of sysmon-config v51 with JPCERT, sysmon-modular and Sigma detections.
+
+  REQUIRED: Sysmon with schema 4.2 or newer. Every change is tested against the latest Sysmon release in CI
+	(https://github.com/0xAnalyst/Sysmon/actions/workflows/validate.yml).
   NOTE: Do not let the imposing size and complexity of this configuration scare you off building your own or customizing it.
 	This configuration is based around known high-quality event tracing, and thus looks extremely complicated.
 	Sysmon configurations only have to be a few lines, but significant effort has been invested in front-loading as
@@ -45,7 +54,7 @@
 				Ultimately, you must weigh CPU time checking many detailed rules, against the risk of malware exploiting the blindness created.-->
 			<!--SECTION: Microsoft Windows-->
 			<ParentImage condition="is">C:\Program Files\avs\bin\avagent.exe</ParentImage> <!--Avamar Client-->
-			<CommandLine condition="begin with"> "C:\Windows\system32\wermgr.exe" "-queuereporting_svc" </CommandLine> <!--Microsoft:Windows:Windows error reporting/telemetry-->
+			<CommandLine condition="begin with">"C:\Windows\system32\wermgr.exe" "-queuereporting_svc" </CommandLine> <!--Microsoft:Windows:Windows error reporting/telemetry-->
 			<CommandLine condition="begin with">"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" --type=</CommandLine> <!--Google:Chrome: massive command-line arguments-->
 			<CommandLine condition="begin with">"C:\Program Files (x86)\Mozilla Firefox\plugin-container.exe" --channel</CommandLine> <!-- Mozilla:Firefox: Large command-line arguments | Credit @Darkbat91 -->
 			<CommandLine condition="begin with">"C:\Program Files\DellTPad\ApMsgFwd.exe" -s{</CommandLine>
@@ -57,7 +66,6 @@
 			<CommandLine condition="begin with">C:\Windows\system32\wbem\wmiprvse.exe -secured -Embedding</CommandLine> <!--Microsoft:Windows: WMI provider host-->
 			<CommandLine condition="contains">AcroRd32.exe" --channel=</CommandLine> <!--Adobe:AcrobatReader: Uninteresting sandbox subprocess-->
 			<CommandLine condition="contains">AcroRd32.exe" /CR </CommandLine> <!--Adobe:AcrobatReader: Uninsteresting sandbox subprocess-->
-			<CommandLine condition="contains">AcroRd32.exe" /CR </CommandLine> <!--Adobe:AcrobatReader: Uninteresting sandbox subprocess-->
 			<CommandLine condition="is">C:\WINDOWS\System32\svchost.exe -k LocalSystemNetworkRestricted -p -s WdiSystemHost</CommandLine> <!--Microsoft:Windows: Diagnostic System Host [ http://www.blackviper.com/windows-services/diagnostic-system-host/ ] -->
 			<CommandLine condition="is">C:\WINDOWS\System32\svchost.exe -k wsappx -p -s ClipSVC</CommandLine> <!--Microsoft:Windows:Apps: Client License Service-->
 			<CommandLine condition="is">C:\WINDOWS\system32\svchost.exe -k appmodel -p -s tiledatamodelsvc</CommandLine>
@@ -82,24 +90,19 @@
 			<CommandLine condition="is">C:\Windows\system32\SearchIndexer.exe /Embedding</CommandLine> <!--Microsoft:Windows: Search Indexer-->
 			<CommandLine condition="is">C:\Windows\system32\igfxsrvc.exe -Embedding</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k appmodel -s StateRepository</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k appmodel</CommandLine> <!--Microsoft:Windows 10-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k camera -s FrameServer</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k dcomlaunch -s LSM</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k dcomlaunch -s PlugPlay</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k defragsvc</CommandLine> <!--Microsoft:Windows defragmentation-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k devicesflow -s DevicesFlowUserSvc</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k imgsvc</CommandLine> <!--Microsoft:The Windows Image Acquisition Service-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localService -s EventSystem</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localService -s bthserv</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localService -s nsi</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localService -s w32Time</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceAndNoImpersonation -s SensrSvc</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceAndNoImpersonation</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNetworkRestricted -s Dhcp</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNetworkRestricted -s EventLog</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNetworkRestricted -s TimeBrokerSvc</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNetworkRestricted -s WFDSConMgrSvc</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNetworkRestricted</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localServiceNoNetwork</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted -p -s WPDBusEnum</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted -p -s fhsvc</CommandLine>
@@ -110,7 +113,6 @@
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted -s UmRdpService</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted -s WPDBusEnum</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted -s WdiSystemHost</CommandLine> <!--Microsoft:Windows: Diagnostic System Host [ http://www.blackviper.com/windows-services/diagnostic-system-host/ ] -->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted</CommandLine> <!--Microsoft:Windows-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -p -s ncaSvc</CommandLine> <!--Microsoft:Windows: Network Connectivity Assistant [ http://www.blackviper.com/windows-services/network-connectivity-assistant/ ] -->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -s BDESVC</CommandLine> <!--Microsoft:Windows:Network: BitLocker Drive Encryption-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -s BITS</CommandLine> <!--Microsoft:Windows:Network: Background Intelligent File Transfer (BITS) -->
@@ -122,29 +124,19 @@
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -s SessionEnv</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -s Themes</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs -s Winmgmt</CommandLine> <!--Microsoft:Windows: Windows Management Instrumentation (WMI) -->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs</CommandLine> <!--Microsoft:Windows: Network services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService -p -s DoSvc</CommandLine>
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService -s Dnscache</CommandLine> <!--Microsoft:Windows:Network: DNS caching, other uses -->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService -s LanmanWorkstation</CommandLine> <!--Microsoft:Windows:Network: "Workstation" service, used for SMB file-sharing connections and RDP-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService -s NlaSvc</CommandLine> <!--Microsoft:Windows:Network: Network Location Awareness-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService -s TermService</CommandLine> <!--Microsoft:Windows:Network: Terminal Services (RDP)-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkService</CommandLine> <!--Microsoft:Windows: Network services-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k networkServiceNetworkRestricted</CommandLine> <!--Microsoft:Windows: Network services-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k rPCSS</CommandLine> <!--Microsoft:Windows Services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k secsvcs</CommandLine>
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k swprv</CommandLine> <!--Microsoft:Software Shadow Copy Provider-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k unistackSvcGroup</CommandLine> <!--Microsoft:Windows 10-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k utcsvc</CommandLine> <!--Microsoft:Windows Services-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k wbioSvcGroup</CommandLine> <!--Microsoft:Windows Services-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k werSvcGroup</CommandLine> <!--Microsoft:Windows: ErrorReporting-->
 			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k wsappx -s ClipSVC</CommandLine> <!--Microsoft:Windows:Apps: Client License Service-->
-			<CommandLine condition="is">C:\Windows\system32\svchost.exe -k wsappx</CommandLine> <!--Microsoft:Windows:Apps [ https://www.howtogeek.com/320261/what-is-wsappx-and-why-is-it-running-on-my-pc/ ] -->
-			<CommandLine condition="is">C:\windows\System32\svchost.exe -k werSvcGroup</CommandLine> <!--Microsoft:Windows: ErrorReporting-->
 			<CommandLine condition="is">C:\windows\system32\wermgr.exe -queuereporting</CommandLine> <!--Microsoft:Windows:Windows error reporting/telemetry-->
 			<CommandLine condition="is">\??\C:\WINDOWS\system32\autochk.exe *</CommandLine> <!--Microsoft:Bootup: Auto Check Utility-->
 			<CommandLine condition="is">\SystemRoot\System32\smss.exe</CommandLine> <!--Microsoft:Bootup: Windows Session Manager-->
 			<Image condition="begin with">C:\Program Files (x86)\Google\Update\</Image> <!--Google:Chrome: Updater-->
-			<Image condition="begin with">C:\Program Files (x86)\Google\Update\</Image> <!--Google:Chrome:Updater: You should experiment with this line since attackers sometimes hide in this folder-->
 			<Image condition="begin with">C:\Program Files\NVIDIA Corporation\</Image> <!--Nvidia:Driver: routine actions-->
 			<Image condition="begin with">C:\Program Files\Realtek\</Image> <!--Realtek:Driver: routine actions-->
 			<Image condition="begin with">C:\Program Files\Windows Defender</Image> <!--Microsoft:Windows:Defender in Win10-->
@@ -157,7 +149,6 @@
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\AcroCEF\AcroCEF.exe</Image> <!--Adobe:Acrobat: Sandbox subprocess, still evaluating security exposure-->
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\AdobeCollabSync.exe</Image>
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\LogTransport2.exe</Image>
-			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat DC\Acrobat\LogTransport2.exe</Image> <!--Adobe: Telemetry [ https://forums.adobe.com/thread/1006701 ] -->
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\AcroCEF\RdrCEF.exe</Image> <!--Adobe:AcrobatReader: Sandbox subprocess, still evaluating security exposure-->
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Acrobat Reader DC\Reader\LogTransport2.exe</Image> <!--Adobe: Telemetry [ https://forums.adobe.com/thread/1006701 ] -->
 			<Image condition="end with">C:\Program Files (x86)\Adobe\Adobe Creative Cloud\ACC\Creative Cloud.exe</Image>
@@ -173,11 +164,9 @@
 			<Image condition="end with">C:\Windows\System32\CompatTelRunner.exe</Image> <!--Microsoft:Windows:Customer Experience Improvement-->
 			<Image condition="is">C:\Program Files (x86)\Common Files\microsoft shared\ink\TabTip32.exe</Image> <!--Microsoft:Windows: Touch Keyboard and Handwriting Panel Helper-->
 			<Image condition="is">C:\Program Files (x86)\Microsoft Office\Office16\MSOSYNC.EXE</Image> <!--Microsoft:Office: Background process for SharePoint/Office365 connectivity-->
-			<Image condition="is">C:\Program Files (x86)\Microsoft Office\Office16\MSOSYNC.EXE</Image> <!--Microsoft:Office: Background process-->
 			<Image condition="is">C:\Program Files (x86)\Microsoft Office\root\Office16\officebackgroundtaskhandler.exe</Image>
 			<Image condition="is">C:\Program Files\Common Files\Microsoft Shared\ClickToRun\OfficeC2RClient.exe</Image> <!--Microsoft:Office: Background process-->
 			<Image condition="is">C:\Program Files\Common Files\Microsoft Shared\OfficeSoftwareProtectionPlatform\OSPPSVC.EXE</Image> <!--Microsoft:Office: Background process-->
-			<Image condition="is">C:\Program Files\Common Files\Microsoft Shared\OfficeSoftwareProtectionPlatform\OSPPSVC.EXE</Image> <!--Microsoft:Office: Licensing service-->
 			<Image condition="is">C:\Program Files\Dell\SupportAssist\koala.exe</Image> <!--Dell:SupportAssist: routine actions-->
 			<Image condition="is">C:\Program Files\Dell\SupportAssist\pcdrcui.exe</Image> <!--Dell:SupportAssist: routine actions-->
 			<Image condition="is">C:\Program Files\Microsoft Office\Office15\MSOSYNC.EXE</Image> <!--Microsoft:Office: Background process for SharePoint/Office365 connectivity-->
@@ -200,31 +189,20 @@
 			<Image condition="is">C:\Windows\System32\wermgr.exe</Image> <!--Microsoft:Windows:Windows error reporting/telemetry-->
 			<Image condition="is">C:\Windows\System32\wifitask.exe</Image> <!--Microsoft:Windows: Wireless Background Task-->
 			<Image condition="is">C:\Windows\system32\CompatTelRunner.exe</Image> <!--Microsoft:Windows: Customer Experience Improvement-->
-			<Image condition="is">C:\Windows\system32\MpSigStub.exe</Image> <!--Microsoft:Windows: Microsoft Malware Protection Signature Update Stub-->
 			<Image condition="is">C:\Windows\system32\PrintIsolationHost.exe</Image> <!--Microsoft:Windows: Printing-->
 			<Image condition="is">C:\Windows\system32\SppExtComObj.Exe</Image> <!--Microsoft:Windows: KMS activation-->
-			<Image condition="is">C:\Windows\system32\audiodg.exe</Image> <!--Microsoft:Windows: Launched constantly-->
-			<Image condition="is">C:\Windows\system32\conhost.exe</Image> <!--Microsoft:Windows: Command line interface host process-->
 			<Image condition="is">C:\Windows\system32\mobsync.exe</Image> <!--Microsoft:Windows: Network file syncing-->
-			<Image condition="is">C:\Windows\system32\musNotification.exe</Image> <!--Microsoft:Windows: Update pop-ups-->
-			<Image condition="is">C:\Windows\system32\musNotificationUx.exe</Image> <!--Microsoft:Windows: Update pop-ups-->
-			<Image condition="is">C:\Windows\system32\powercfg.exe</Image> <!--Microsoft:Power configuration management-->
 			<Image condition="is">C:\Windows\system32\sndVol.exe</Image> <!--Microsoft:Windows: Volume control-->
 			<Image condition="is">C:\Windows\system32\sppsvc.exe</Image> <!--Microsoft:Windows: Software Protection Service-->
-			<Image condition="is">C:\Windows\system32\wbem\WmiApSrv.exe</Image> <!--Microsoft:Windows: WMI performance adapter host process-->
 			<IntegrityLevel condition="is">AppContainer</IntegrityLevel> <!--Microsoft:Windows: Don't care about sandboxed processes-->
 			<ParentCommandLine condition="begin with">%%SystemRoot%%\system32\csrss.exe ObjectDirectory=\Windows</ParentCommandLine> <!--Microsoft:Windows:CommandShell: Triggered when programs use the command shell, but doesn't provide attribution for what caused it-->
-			<ParentCommandLine condition="begin with">%%SystemRoot%%\system32\csrss.exe ObjectDirectory=\Windows</ParentCommandLine> <!--Microsoft:Windows:CommandShell: Triggered when programs use the command shell, but without attribution-->
 			<ParentCommandLine condition="contains">C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngentask.exe</ParentCommandLine>
 			<ParentCommandLine condition="end with">"-outc=C:\ProgramData\Dell\CommandUpdate\inventory.xml" "-logc=C:\ProgramData\Dell\CommandUpdate\scanerrs.xml" "-lang=en" "-enc=UTF-16" </ParentCommandLine>
 			<ParentCommandLine condition="is">C:\WINDOWS\system32\svchost.exe -k DcomLaunch</ParentCommandLine>
 			<ParentCommandLine condition="is">C:\Windows\System32\svchost.exe -k netsvcs</ParentCommandLine> <!--Microsoft:Windows: Network services: Spawns Consent.exe-->
 			<ParentCommandLine condition="is">C:\Windows\system32\svchost.exe -k LocalSystemNetworkRestricted</ParentCommandLine> <!--Microsoft:Windows: Network services-->
-			<ParentCommandLine condition="is">C:\Windows\system32\svchost.exe -k localSystemNetworkRestricted</ParentCommandLine> <!--Microsoft:Windows-->
-			<ParentCommandLine condition="is">C:\Windows\system32\svchost.exe -k netsvcs</ParentCommandLine> <!--Microsoft:Windows: Network services: Spawns Consent.exe-->
 			<ParentCommandLine condition="is">C:\windows\system32\wermgr.exe -queuereporting</ParentCommandLine> <!--Microsoft:Windows:Windows error reporting/telemetry-->
 			<ParentImage condition="begin with">C:\Program Files (x86)\Google\Update\</ParentImage> <!--Google:Chrome: Updater-->
-			<ParentImage condition="begin with">C:\Program Files (x86)\Google\Update\</ParentImage> <!--Google:Chrome:Updater: You should experiment with this line since attackers sometimes hide in this folder-->
 			<ParentImage condition="end with">C:\Program Files (x86)\Adobe\Adobe Creative Cloud\ACC\Creative Cloud.exe</ParentImage>
 			<ParentImage condition="end with">C:\Program Files (x86)\Adobe\Adobe Creative Cloud\CCXProcess\CCXProcess.exe</ParentImage>
 			<ParentImage condition="end with">C:\Program Files (x86)\Adobe\Adobe Creative Cloud\CoreSync\CoreSync.exe</ParentImage>
@@ -245,9 +223,7 @@
 			<ParentImage condition="is">C:\Windows\Microsoft.NET\Framework64\v4.0.30319\ngentask.exe</ParentImage> <!--Microsoft:DotNet-->
 			<ParentImage condition="is">C:\Windows\Microsoft.NET\Framework\v4.0.30319\mscorsvw.exe</ParentImage> <!--Microsoft:DotNet-->
 			<ParentImage condition="is">C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngentask.exe</ParentImage> <!--Microsoft:DotNet-->
-			<ParentImage condition="is">C:\Windows\Microsoft.NET\Framework\v4.0.30319\ngentask.exe</ParentImage> <!--Microsoft:DotNet: Spawns thousands of ngen.exe processes-->
 			<ParentImage condition="is">C:\Windows\system32\SearchIndexer.exe</ParentImage> <!--Microsoft:Windows:Search: Launches many uninteresting sub-processes-->
-			<CommandLine condition="begin with">C:\Windows\system32\DllHost.exe /Processid</CommandLine> <!--Microsoft:Windows-->
 		</ProcessCreate>
 </RuleGroup>
 
@@ -364,7 +340,6 @@
 			<Image condition="image">g2mcomm.exe</Image> <!--GoToMeeting-->
 			<!--SECTION: Microsoft-->
 			<Image condition="image">OneDriveStandaloneUpdater.exe</Image> <!--Microsoft:OneDrive-->
-			<Image condition="image">OneDrive.exe</Image> <!--Microsoft:OneDrive-->
 			<!--<Image condition="image">system.exe</Image>-->
 			<Image condition="end with">AppData\Local\Microsoft\Teams\current\Teams.exe</Image> <!--Microsoft: Teams-->
 			<DestinationHostname condition="end with">microsoft.com</DestinationHostname> <!--Microsoft:Update delivery-->
@@ -461,7 +436,6 @@
 			<GrantedAccess condition="is">0x400</GrantedAccess>
 			<SourceImage condition="is">C:\Windows\system32\wbem\wmiprvse.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\system32\lsm.exe</SourceImage>
-			<SourceImage condition="is">C:\Windows\system32\wbem\wmiprvse.exe</SourceImage>
 			<SourceImage condition="is">C:\Windows\sysWOW64\wbem\wmiprvse.exe</SourceImage>
 			<SourceImage condition="is">C:\Program Files\Hewlett-Packard\AMS\service\hpqams.exe</SourceImage>
 			<SourceImage condition="contains">esrv_svc.exe</SourceImage>
@@ -510,7 +484,6 @@
 			<TargetFilename condition="begin with">C:\Windows\System32\WindowsPowerShell</TargetFilename> <!--Microsoft:Powershell: Look for modifications for persistence [ https://www.malwarearchaeology.com/cheat-sheets ] -->
 			<TargetFilename condition="begin with">C:\Windows\SysWOW64\WindowsPowerShell</TargetFilename> <!--Microsoft:Powershell: Look for modifications for persistence [ https://www.malwarearchaeology.com/cheat-sheets ] -->
 			<TargetFilename condition="begin with">C:\Windows\Tasks\</TargetFilename> <!--Microsoft:ScheduledTasks-->
-			<TargetFilename condition="begin with">C:\Windows\system32\Tasks</TargetFilename> <!--Microsoft:ScheduledTasks [ https://attack.mitre.org/wiki/Technique/T1053 ] -->
 
 			<!--Windows application compatibility-->
 			<TargetFilename condition="begin with">C:\Windows\AppPatch\Custom</TargetFilename> <!--Microsoft:Windows: Application compatibility shims [ https://www.fireeye.com/blog/threat-research/2017/05/fin7-shim-databases-persistence.html ] -->
@@ -648,71 +621,54 @@
 			<TargetObject condition="end with">\FriendlyName</TargetObject> <!--Microsoft:Windows: New devices connected and remembered-->
 			<TargetObject condition="is">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Installer\InProgress\(Default)</TargetObject> <!--Microsoft:Windows: See when WindowsInstaller is engaged-->
 			<!--Section Ola MITRE config https://raw.githubusercontent.com/olafhartong/sysmon-modular/master/sysmonconfig.xml-->
-			<TargetObject condition="begin with" name="technique_id=T1003,technique_name=Credential Dumping">HKLM\SYSTEM\CurrentControlSet\Control\SecurityProviders\SecurityProviders</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Userinit</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1013,technique_name=Forced Authentication">HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1060,technique_name=Registry Run Keys / Start Folder">HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\BootExecute</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1060,technique_name=Registry Run Keys / Start Folder">HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp\InitialProgram</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1088,technique_name=Bypass User Account Control">HKLM\SOFTWARE\Microsoft\Security Center\UacDisableNotify</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1088,technique_name=Bypass User Account Control">HKLM\SOFTWARE\Microsoft\Security Center\UpdatesDisableNotify</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1088,technique_name=Bypass User Account Control">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1088,technique_name=Bypass User Account Control">HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System\LocalAccountTokenFilterPolicy</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Microsoft\Security Center\AntiVirusDisableNotify</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Microsoft\Security Center\FirewallDisableNotify</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Microsoft\Security Center\FirewallOverride</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection\DisableBehaviorMonitoring</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection\DisableOnAccessProtection</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Real-Time Protection\DisableScanOnRealtimeEnable</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet\SpyNetReporting</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1089,technique_name=Disabling Security Tools">HKLM\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\StandardProfile\AuthorizedApplications\List</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1103,technique_name=Appinit DLLs">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows\Appinit_Dlls</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1103,technique_name=Appinit DLLs">HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows\Appinit_Dlls</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1130,technique_name=Install Root Certificate">HKLM\SOFTWARE\Microsoft\EnterpriseCertificates\Root\Certificates</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1131,technique_name=Authentication Package">HKLM\SYSTEM\CurrentControlSet\Control\Lsa</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1182,technique_name=AppCert DLLs">HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\AppCertDlls</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1183,technique_name=Image File Execution Options Injection">HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1183,technique_name=Image File Execution Options Injection">HKLM\Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1198,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\Microsoft\Cryptography\OID</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1198,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\Microsoft\Cryptography\Providers\Trust</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1198,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\WOW6432Node\Microsoft\Cryptography\OID</TargetObject>
-			<TargetObject condition="begin with" name="technique_id=T1198,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\WOW6432Node\Microsoft\Cryptography\Providers\Trust</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1003,technique_name=Credential Dumping">\Control\SecurityProviders\WDigest</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1037,technique_name=Logon Scripts">\Windows\System\Scripts</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1042,technique_name=Change Default File Association">\Explorer\FileExts</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1547.004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1547.004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Shell</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1547.004,technique_name=Winlogon Helper DLL">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon\Userinit</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1547.010,technique_name=Port Monitors">HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1548.002,technique_name=Bypass User Account Control">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1685,technique_name=Disable or Modify Tools">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1546.010,technique_name=AppInit DLLs">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows\Appinit_Dlls</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1546.010,technique_name=AppInit DLLs">HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows\Appinit_Dlls</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1553.004,technique_name=Install Root Certificate">HKLM\SOFTWARE\Microsoft\EnterpriseCertificates\Root\Certificates</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1547.002,technique_name=Authentication Package">HKLM\SYSTEM\CurrentControlSet\Control\Lsa</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1546.009,technique_name=AppCert DLLs">HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\AppCertDlls</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1546.012,technique_name=Image File Execution Options Injection">HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1546.012,technique_name=Image File Execution Options Injection">HKLM\Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1553.003,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\Microsoft\Cryptography\OID</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1553.003,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\Microsoft\Cryptography\Providers\Trust</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1553.003,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\WOW6432Node\Microsoft\Cryptography\OID</TargetObject>
+			<TargetObject condition="begin with" name="technique_id=T1553.003,technique_name=SIP and Trust Provider Hijacking">HKLM\SOFTWARE\WOW6432Node\Microsoft\Cryptography\Providers\Trust</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1003,technique_name=OS Credential Dumping">\Control\SecurityProviders\WDigest</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1546.001,technique_name=Change Default File Association">\Explorer\FileExts</TargetObject>
 			<TargetObject condition="contains" name="technique_id=T1047,technique_name=Windows Management Instrumentation">SYSTEM\CurrentControlSet\Control\CrashControl</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1060,technique_name=Registry Run Keys / Start Folder">\CurrentVersion\Run</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1060,technique_name=Registry Run Keys / Start Folder">\Policies\Explorer\Run</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1088,technique_name=Bypass User Account Control">Classes\exefile\shell\runas\command\isolatedCommand</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1088,technique_name=Bypass User Account Control">\mscfile\shell\open\command</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1088,technique_name=Bypass User Account Control">ms-settings\shell\open\command</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1089,technique_name=Disabling Security Tools">SYSTEM\CurrentControlSet\services\Sysmon</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1089,technique_name=Disabling Security Tools">SYSTEM\CurrentControlSet\services\SysmonDrv</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1548.002,technique_name=Bypass User Account Control">Classes\exefile\shell\runas\command\isolatedCommand</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1548.002,technique_name=Bypass User Account Control">\mscfile\shell\open\command</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1548.002,technique_name=Bypass User Account Control">ms-settings\shell\open\command</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1685,technique_name=Disable or Modify Tools">SYSTEM\CurrentControlSet\services\Sysmon</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1685,technique_name=Disable or Modify Tools">SYSTEM\CurrentControlSet\services\SysmonDrv</TargetObject>
 			<TargetObject condition="contains" name="technique_id=T1098,technique_name=Account Manipulation">\services\Netlogon\Parameters\DisablePasswordChange</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1101,technique_name=Security Support Provider">SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LSASS.exe</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1122,technique_name=Component Object Model Hijacking">Software\Classes\CLSID</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1128,technique_name=Netsh Helper DLL">SOFTWARE\Microsoft\Netsh</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1130,technique_name=Install Root Certificate">\Microsoft\SystemCertificates\Root\Certificates</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1138,technique_name=Application Shimming">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1138,technique_name=Application Shimming">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\InstalledSDB</TargetObject>
-			<TargetObject condition="contains" name="technique_id=T1209,technique_name=Time Providers">HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\W32Time\TimeProviders</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1547.005,technique_name=Security Support Provider">SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\LSASS.exe</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1546.015,technique_name=Component Object Model Hijacking">Software\Classes\CLSID</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1546.007,technique_name=Netsh Helper DLL">SOFTWARE\Microsoft\Netsh</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1553.004,technique_name=Install Root Certificate">\Microsoft\SystemCertificates\Root\Certificates</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1546.011,technique_name=Application Shimming">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1546.011,technique_name=Application Shimming">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\InstalledSDB</TargetObject>
+			<TargetObject condition="contains" name="technique_id=T1547.003,technique_name=Time Providers">HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\W32Time\TimeProviders</TargetObject>
 			<TargetObject condition="end with" name="technique_id=T1033,technique_name=System Owner/User Discovery">\PsGetSID\EulaAccepted</TargetObject>
 			<TargetObject condition="end with" name="technique_id=T1033,technique_name=System Owner/User Discovery">\PsLoggedOn\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="technique_id=T1035,technique_name=Service Execution">\PsExec\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="technique_id=T1035,technique_name=Service Execution">\PsLogList\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="technique_id=T1035,technique_name=Service Execution">\PsService\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1569.002,technique_name=Service Execution">\PsExec\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1569.002,technique_name=Service Execution">\PsLogList\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1569.002,technique_name=Service Execution">\PsService\EulaAccepted</TargetObject>
 			<TargetObject condition="end with" name="technique_id=T1057,technique_name=Process Discovery">\PsInfo\EulaAccepted</TargetObject>
 			<TargetObject condition="end with" name="technique_id=T1057,technique_name=Process Discovery">\PsList\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="technique_id=T1089,technique_name=Disabling Security Tools">\PsKill\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1685,technique_name=Disable or Modify Tools">\PsKill\EulaAccepted</TargetObject>
 			<TargetObject condition="end with" name="technique_id=T1098,technique_name=Account Manipulation">\PsPasswd\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="technique_id=T1105,technique_name=Remote File Copy">\PsFile\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="undefined">\PsShutDown\EulaAccepted</TargetObject>
-			<TargetObject condition="end with" name="undefined">\PsSuspend\EulaAccepted</TargetObject>
-			<TargetObject name="technique_id=T1015,technique_name=Accessibility Features">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
-			<TargetObject name="technique_id=T1076,technique_name=Remote Desktop Protocol">HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services</TargetObject>
-			<TargetObject name="technique_id=T1103,technique_name=Appinit DLLs">REGISTRY\MACHINE\SYSTEM\ControlSet001\Services\DNS\Parameters\ServerLevelPluginDll</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1105,technique_name=Ingress Tool Transfer">\PsFile\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1529,technique_name=System Shutdown/Reboot">\PsShutDown\EulaAccepted</TargetObject>
+			<TargetObject condition="end with" name="technique_id=T1685,technique_name=Disable or Modify Tools">\PsSuspend\EulaAccepted</TargetObject>
+			<TargetObject name="technique_id=T1546.008,technique_name=Accessibility Features">HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options</TargetObject>
+			<TargetObject name="technique_id=T1021.001,technique_name=Remote Desktop Protocol">HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services</TargetObject>
+			<TargetObject name="technique_id=T1546.010,technique_name=AppInit DLLs">REGISTRY\MACHINE\SYSTEM\ControlSet001\Services\DNS\Parameters\ServerLevelPluginDll</TargetObject>
 			<TargetObject>HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Setup\ServiceStartup</TargetObject>
 			
 		</RegistryEvent>
@@ -755,7 +711,6 @@
 			<TargetObject condition="end with">\Drive\shellex\DragDropHandlers</TargetObject> <!--Microsoft:Windows: Remove noise monitoring Classes-->
 			<TargetObject condition="contains">_Classes\AppX</TargetObject> <!--Microsoft:Windows: Remove noise monitoring "Shell\open\command"--> <!--Win8+-->
 			<TargetObject condition="begin with">HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WINEVT\Publishers\</TargetObject> <!--Microsoft:Windows: SvcHost Noise-->
-			<Image condition="is">C:\Windows\SystemApps\Microsoft.Windows.Cortana_cw5n1h2txyewy\SearchUI.exe</Image> <!--Microsoft:Windows: Remove noise from Windows 10 Cortana | Credit @ion-storm--> <!--Win10-->
 			<!--Bootup Control noise-->
 			<TargetObject condition="end with">HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Audit</TargetObject> <!--Microsoft:Windows:lsass.exe: Boot noise--> <!--Win8+-->
 			<TargetObject condition="end with">HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Audit\AuditPolicy</TargetObject> <!--Microsoft:Windows:lsass.exe: Boot noise--> <!--Win8+-->
@@ -816,7 +771,6 @@
 				[ https://blogs.technet.microsoft.com/askcore/2013/03/24/alternate-data-streams-in-ntfs/ ]
 				ADS's are used by browsers and email clients to mark files as originating from the Internet or other foreign sources.
 				[ https://textslashplain.com/2016/04/04/downloads-and-the-mark-of-the-web/ ] -->
-			<TargetFilename condition="end with">.vb</TargetFilename> <!--VisualBasicScripting files-->
 			<TargetFilename condition="end with">.application</TargetFilename> <!--Microsoft:ClickOnce: [ https://blog.netspi.com/all-you-need-is-one-a-clickonce-love-story/ ] -->
 			<TargetFilename condition="end with">.appref-ms</TargetFilename> <!--Microsoft:ClickOnce application | Credit @ion-storm -->
 				<TargetFilename condition="end with">.cmdline</TargetFilename> <!--Microsoft:dotNet: Executed by cvtres.exe-->
@@ -825,16 +779,11 @@
 			<TargetFilename condition="end with">.dll</TargetFilename> <!--Executable-->
 			<TargetFilename condition="end with">.sys</TargetFilename> <!--Executable-->
 			<TargetFilename condition="end with">.pptm</TargetFilename> <!--Microsoft:Office:Word: Macro-->
-			<TargetFilename condition="end with">.sys</TargetFilename> <!--System driver files-->
-			<TargetFilename condition="end with">.docm</TargetFilename> <!--Office Macros-->
 			<TargetFilename condition="end with">.xlsm</TargetFilename> <!--Office Macros-->
 			<TargetFilename condition="end with">.xlam</TargetFilename> <!--Office Macros-->
-			<TargetFilename condition="end with">.pptm</TargetFilename> <!--Office Macros-->
 			<TargetFilename condition="end with">.potm</TargetFilename> <!--Office Macros-->
-			<TargetFilename condition="end with">.pptm</TargetFilename> <!--Office Macros-->
 			<TargetFilename condition="end with">.sldm</TargetFilename> <!--Office Macros-->
 			<TargetFilename condition="end with">.scf</TargetFilename> <!--Explorer Command File-->
-			<TargetFilename condition="end with">.appref-ms</TargetFilename> <!--ClickOnce Application-->
 			<TargetFilename condition="end with">.rdp</TargetFilename> <!--Remote Desktop file-->
 			<TargetFilename condition="end with">.js</TargetFilename> <!--Java-->
 			<!--SECTION: Certificates -->
@@ -987,7 +936,6 @@
 			<Image condition="is">C:\Program Files (x86)\SmartGit\git\mingw32\bin\git.exe</Image>
 			<Image condition="is">C:\Program Files (x86)\SmartGit\git\mingw32\libexec\git-core\git.exe</Image>
 			<Image condition="is">C:\Program Files (x86)\SmartGit\bin\smartgit.exe</Image>
-			<Image condition="is">C:\Program Files (x86)\SmartGit\bin\smartgit.exe</Image>
 			<PipeName condition="contains">Anonymous Pipe</PipeName> <!-- NOTICE: Comment this out if you dont use Labtech, labtech nests processes and causes excessive noise -->
 			<Image condition="is">C:\Program Files (x86)\Fortinet\FortiClient\FortiESNAC.exe</Image>
 			<Image condition="is">C:\Program Files (x86)\Fortinet\FortiClient\update_task.exe</Image>
@@ -1004,16 +952,13 @@
 			<PipeName condition="contains">MICROSOFT##WID\tsql\query</PipeName> <!-- Microsoft SQL writer-->
 			<PipeName condition="contains">TSVCPIPE-</PipeName> <!-- Terminal Services Pipe-->
 			<PipeName condition="contains">BB4BB19A178C25D1</PipeName>
-			<PipeName condition="contains">SQLAnywhereLRM</PipeName>
 			<PipeName condition="contains">SQLLocal</PipeName>
 			<PipeName condition="contains">DropboxPipe_</PipeName>
 			<PipeName condition="contains">pipe\netlogon</PipeName>
 			<PipeName condition="contains">pipe\samr</PipeName>
 			<PipeName condition="contains">pipe\lsarpc</PipeName>
-			<Image condition="is">c:\windows\system32\inetsrv\w3wp.exe</Image>
 			<Image condition="is">C:\Program Files (x86)\Common Files\SafeNet Sentinel\Sentinel RMS License Manager\WinNT\mfcesd.exe</Image>
 			<Image condition="is">C:\Pfx Engagement\WM\PFXEngagement.exe</Image>
-			<Image condition="is">C:\Pfx Engagement\WM\PfxEngagement.exe</Image>
 			<Image condition="is">C:\Pfx Engagement\WM\Pfx.KnowledgeCoach.SharedServices.exe</Image>
 			<Image condition="is">C:\Program Files (x86)\Micro Focus\COBOL Server 2012\bin\mfds.exe</Image>
 			<Image condition="is">ScreenConnect.WindowsClient.exe</Image>
