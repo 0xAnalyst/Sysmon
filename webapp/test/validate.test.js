@@ -26,6 +26,26 @@ describe('validate', () => {
     expect(msgs(cfg).join('\n')).toMatch(/user-writable location/);
   });
 
+  it('does not treat the admin-only DriverStore\\Temp as user-writable', () => {
+    const cfg = newConfig('windows');
+    cfg.events.FileCreate.mode = 'filtered';
+    cfg.events.FileCreate.exclude.push(newCond('TargetFilename', 'begin with', 'C:\\Windows\\System32\\DriverStore\\Temp\\'));
+    cfg.events.FileCreate.exclude.push(newCond('TargetFilename', 'begin with', 'C:\\Windows\\Temp\\'));
+    const out = msgs(cfg).filter(m => /user-writable/.test(m));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatch(/C:\\Windows\\Temp/);
+  });
+
+  it('warns about leading spaces but only notes trailing ones', () => {
+    const cfg = newConfig('windows');
+    cfg.events.DriverLoad.mode = 'filtered';
+    cfg.events.DriverLoad.exclude.push(newCond('Signature', 'begin with', 'Intel '));
+    cfg.events.DriverLoad.exclude.push(newCond('Signature', 'begin with', ' Microsoft'));
+    const out = msgs(cfg).join('\n');
+    expect(out).toMatch(/warn: Value " Microsoft" starts with a space/);
+    expect(out).toMatch(/info: Value "Intel " ends with a space/);
+  });
+
   it('points out revoked ATT&CK IDs', () => {
     const cfg = newConfig('windows');
     cfg.events.RegistryEvent.mode = 'filtered';

@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Config builder
+    url: https://0xanalyst.github.io/Sysmon/
+    about: Tune and test the configs in your browser before opening an issue.
+  - name: Security report
+    url: https://github.com/0xAnalyst/Sysmon/security/advisories/new
+    about: Report bypasses and vulnerabilities privately.
