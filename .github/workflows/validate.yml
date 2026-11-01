@@ -6,6 +6,7 @@ on:
       - 'webapp/**'
       - 'sysmonv9.xml'
       - 'SysmonForLinux/config.xml'
+      - 'dfir/**'
       - '.github/workflows/validate.yml'
   pull_request:           # every PR, so these checks can be required on master
   schedule:
@@ -34,7 +35,18 @@ jobs:
       - run: npm test
       - name: Lint the repo configs
         run: node scripts/lint-config.mjs ../sysmonv9.xml ../SysmonForLinux/config.xml
+      - name: Lint the DFIR config with the incident-response profile
+        run: node scripts/lint-config.mjs --ir ../dfir/windows-ir.xml
+      - name: Real-intrusion cases (DFIR config must log all of them)
+        run: |
+          node scripts/check-cases.mjs ../dfir/windows-ir.xml ../dfir/tests/cases.json
+          node scripts/check-cases.mjs --report-only ../sysmonv9.xml ../dfir/tests/cases.json
       - run: node scripts/export-configs.mjs out
+      - name: Add the DFIR config and a merged example overlay to the configs Sysmon must accept
+        run: |
+          cp ../dfir/windows-ir.xml out/windows-dfir.xml
+          node scripts/apply-overlay.mjs ../dfir/windows-ir.xml ../dfir/overlays/example-client.xml out/windows-dfir-overlay.xml
+          node scripts/check-cases.mjs out/windows-dfir-overlay.xml ../dfir/tests/cases.json
       - uses: actions/upload-artifact@v4
         with:
           name: generated-configs
@@ -123,3 +135,75 @@ jobs:
             out=$(sudo sysmon -c "$f" 2>&1); echo "$out"
             if echo "$out" | grep -qiE '\b(error|invalid|failed)\b'; then echo "::error::Sysmon rejected $f"; exit 1; fi
           done
+
+  dfir-kit:
+    name: DFIR kit end to end on Windows
+    needs: unit
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: powershell   # Windows PowerShell 5.1, what the scripts target on client hosts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Sysmon from Sysinternals
+        run: |
+          Invoke-WebRequest -UseBasicParsing https://download.sysinternals.com/files/Sysmon.zip -OutFile Sysmon.zip
+          Expand-Archive Sysmon.zip -DestinationPath sysmon
+          $sig = Get-AuthenticodeSignature sysmon\Sysmon64.exe
+          if ($sig.Status -ne 'Valid') { throw "Unexpected signature status: $($sig.Status)" }
+
+      - name: Record the audit policy before deployment
+        run: auditpol /backup /file:"$env:RUNNER_TEMP\auditpol-original.csv"
+
+      - name: Deploy
+        run: .\dfir\scripts\Deploy-SysmonIR.ps1 -SysmonExe sysmon\Sysmon64.exe
+
+      - name: Deploy again (must be safe to re-run)
+        run: .\dfir\scripts\Deploy-SysmonIR.ps1 -SysmonExe sysmon\Sysmon64.exe
+
+      - name: Audit policy and logging settings are applied
+        run: |
+          $pc = auditpol /get /subcategory:'{0CCE922B-69AE-11D9-BED3-505054503030}' /r | ConvertFrom-Csv
+          if ($pc.'Inclusion Setting' -notmatch 'Success') { throw "Process Creation auditing is '$($pc.'Inclusion Setting')'" }
+          $sb = Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\PowerShell\ScriptBlockLogging'
+          if ($sb.EnableScriptBlockLogging -ne 1) { throw 'Script block logging is not enabled' }
+          $size = (Get-WinEvent -ListLog 'Microsoft-Windows-Sysmon/Operational').MaximumSizeInBytes
+          if ($size -lt 2GB) { throw "Sysmon log is only $size bytes" }
+
+      - name: Harmless intrusion-like activity is logged
+        run: .\dfir\tests\Test-SysmonIRKit.ps1
+
+      - name: Collect
+        run: |
+          .\dfir\scripts\Collect-SysmonIR.ps1 -OutputDir "$env:RUNNER_TEMP\collect"
+          $zip = Get-ChildItem "$env:RUNNER_TEMP\collect\*.zip" | Select-Object -First 1
+          if (-not $zip) { throw 'No collection zip' }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $entries = [IO.Compression.ZipFile]::OpenRead($zip.FullName).Entries.FullName
+          foreach ($need in 'logs/Microsoft-Windows-Sysmon%4Operational.evtx', 'logs/Security.evtx', 'manifest-sha256.csv', 'host.json', 'deployment-state.json') {
+            if (-not ($entries -replace '\\', '/' -contains $need)) { throw "Collection is missing $need" }
+          }
+          $kept = @($entries | Where-Object { ($_ -replace '\\', '/') -like 'deleted-files/*' -and $_ -notmatch '[\\/]$' })
+          "Deleted files kept by Sysmon: $($kept.Count)"
+          if (-not $kept.Count) { throw 'Sysmon did not keep a copy of the deleted test executable' }
+          if (-not (Test-Path "$($zip.FullName).sha256")) { throw 'No .sha256 next to the zip' }
+
+      - name: Remove and check everything is restored
+        run: |
+          .\dfir\scripts\Remove-SysmonIR.ps1 -RemoveArchive
+          if (Get-Service Sysmon64 -ErrorAction SilentlyContinue) { throw 'Sysmon64 service still installed' }
+          $before = Import-Csv "$env:RUNNER_TEMP\auditpol-original.csv" | Where-Object { $_.'Subcategory GUID' -eq '{0CCE922B-69AE-11D9-BED3-505054503030}' }
+          $now = auditpol /get /subcategory:'{0CCE922B-69AE-11D9-BED3-505054503030}' /r | ConvertFrom-Csv
+          "Process Creation auditing before: '$($before.'Inclusion Setting')', now: '$($now.'Inclusion Setting')'"
+          if ($before -and $before.'Inclusion Setting' -and $before.'Inclusion Setting' -ne $now.'Inclusion Setting') { throw 'Audit policy was not restored' }
+          if (Test-Path 'C:\SysmonIRArchive') { throw 'Archive folder was not removed' }
+          if (Test-Path "$env:ProgramData\SysmonIR\state.json") { throw 'State was not cleaned up' }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dfir-kit-collection
+          path: ${{ runner.temp }}/collect
+          retention-days: 7
+

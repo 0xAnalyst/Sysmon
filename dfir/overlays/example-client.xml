@@ -1,0 +1,31 @@
+<!--
+  Example client overlay for dfir/windows-ir.xml.
+  Copy it per engagement, add only exclusions you have confirmed as noise in that client's logs
+  (the builder's Log analysis page ranks the noisiest processes), and merge it:
+    cd webapp && node scripts/apply-overlay.mjs ../dfir/windows-ir.xml ../dfir/overlays/<client>.xml ../out/sysmon-<client>.xml
+    node scripts/check-cases.mjs ../out/sysmon-<client>.xml ../dfir/tests/cases.json
+
+  Rules for exclusions (the merge step rejects the first two):
+    - Full paths only. Never a bare binary name: attackers renamed or masqueraded binaries in most intrusions.
+    - Never a user-writable folder (Users, AppData, Temp, ProgramData subfolders an app does not own).
+    - Prefer combining image + destination/target in an AND rule over excluding a whole process.
+-->
+<Sysmon schemaversion="4.90">
+	<EventFiltering>
+		<RuleGroup name="" groupRelation="or">
+			<NetworkConnect onmatch="exclude">
+				<!--Example: the client's backup agent talking to its own server on its own port.-->
+				<Rule groupRelation="and">
+					<Image condition="is">C:\Program Files\ExampleBackup\agent.exe</Image>
+					<DestinationPort condition="is">10443</DestinationPort>
+				</Rule>
+			</NetworkConnect>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<DnsQuery onmatch="exclude">
+				<!--Example: the client's own monitoring domain, queried every few seconds.-->
+				<QueryName condition="end with">.monitoring.example-client.internal</QueryName>
+			</DnsQuery>
+		</RuleGroup>
+	</EventFiltering>
+</Sysmon>

@@ -1,0 +1,456 @@
+<!--
+  sysmon-dfir | Sysmon configuration for incident response engagements (Windows)
+  Version:	1.0 | Date: 2026-11-01
+  Author:	0xAnalyst (@0xAnalyst)
+  Project:	https://github.com/0xAnalyst/Sysmon (dfir/)
+  License:	Creative Commons Attribution 4.0
+
+  PURPOSE
+	Evidence collection on hosts that may already be compromised, for the length of an engagement
+	(days to weeks). It is NOT a production detection config: it logs far more than sysmonv9.xml.
+
+  DESIGN (from 82 intrusions published by The DFIR Report, 2020-2026; see dfir/README.md)
+	- Log everything for process, network, DNS, driver, remote-thread, raw-disk, WMI, pipe, stream and
+	  tampering events. Beacons ran inside injected Windows processes in over a third of the cases, so
+	  allow-lists of "interesting" programs miss them.
+	- Where logging everything is too heavy (files, registry, DLL loads, deletes), include the drop
+	  folders, file types and registry keys the intrusions actually used.
+	- Keep copies of executables deleted from drop folders: attackers removed their tools in over a
+	  third of the cases.
+	- Exclusions are few, narrow and by full path. Binaries were renamed or masqueraded in most cases,
+	  so never exclude a program by name. Add client-specific noise exclusions in a separate overlay
+	  (see dfir/README.md), never in this file.
+
+  TESTS
+	dfir/tests/cases.json holds events reconstructed from the reports. CI fails if this config stops
+	logging any of them, and applies the config to the real Sysmon on Windows.
+
+  REQUIRED: Sysmon 15.x (schema 4.90). Deploy with dfir/scripts/Deploy-SysmonIR.ps1.
+-->
+<Sysmon schemaversion="4.90">
+	<HashAlgorithms>MD5,SHA256,IMPHASH</HashAlgorithms>
+	<!-- No reverse DNS for network events (noise, and an outbound signal to the attacker). -->
+	<DnsLookup>False</DnsLookup>
+	<!-- Revocation checks need internet access; isolated or contained hosts would stall on them. -->
+	<CheckRevocation>False</CheckRevocation>
+	<!-- Deleted files kept by FileDelete rules go to <volume>:\SysmonIRArchive (SYSTEM-only ACL). -->
+	<ArchiveDirectory>SysmonIRArchive</ArchiveDirectory>
+	<EventFiltering>
+
+		<!--EVENT 1: PROCESS CREATION. Log everything.-->
+		<RuleGroup name="" groupRelation="or">
+			<ProcessCreate onmatch="exclude">
+			</ProcessCreate>
+		</RuleGroup>
+
+		<!--EVENT 2: FILE CREATION TIME CHANGED (timestomping). Log everything.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileCreateTime onmatch="exclude">
+			</FileCreateTime>
+		</RuleGroup>
+
+		<!--EVENT 3: NETWORK CONNECTION. Log everything: beacons, tunnels, RMM tools, SMB/RDP lateral movement, exfiltration.-->
+		<RuleGroup name="" groupRelation="or">
+			<NetworkConnect onmatch="exclude">
+			</NetworkConnect>
+		</RuleGroup>
+
+		<!--EVENT 5: PROCESS TERMINATED. Log everything (process lifetimes for the timeline).-->
+		<RuleGroup name="" groupRelation="or">
+			<ProcessTerminate onmatch="exclude">
+			</ProcessTerminate>
+		</RuleGroup>
+
+		<!--EVENT 6: DRIVER LOADED. Log everything: drivers abused to kill EDR are validly signed.-->
+		<RuleGroup name="" groupRelation="or">
+			<DriverLoad onmatch="exclude">
+			</DriverLoad>
+		</RuleGroup>
+
+		<!--EVENT 7: IMAGE (DLL) LOADED. Targeted: sideloading, DLLs from drop folders, in-memory .NET tooling, LSASS dumping.-->
+		<RuleGroup name="" groupRelation="or">
+			<ImageLoad onmatch="include">
+				<Signed name="technique_id=T1574.001,technique_name=DLL" condition="is">false</Signed> <!--Unsigned DLLs: sideloading and loaders-->
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\ProgramData\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\Users\Public\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\PerfLogs\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\Windows\Temp\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\Intel\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="begin with">C:\Temp\</ImageLoaded>
+				<ImageLoaded name="technique_id=T1574.001,technique_name=DLL" condition="contains">\AppData\Local\Temp\</ImageLoaded>
+				<!--Any process running from a drop folder: everything it loads.-->
+				<Image name="technique_id=T1036.005,technique_name=Match Legitimate Resource Name or Location" condition="begin with">C:\Users\Public\</Image>
+				<Image name="technique_id=T1036.005,technique_name=Match Legitimate Resource Name or Location" condition="begin with">C:\PerfLogs\</Image>
+				<Image name="technique_id=T1036.005,technique_name=Match Legitimate Resource Name or Location" condition="begin with">C:\Windows\Temp\</Image>
+				<Image name="technique_id=T1036.005,technique_name=Match Legitimate Resource Name or Location" condition="begin with">C:\Intel\</Image>
+				<Image name="technique_id=T1036.005,technique_name=Match Legitimate Resource Name or Location" condition="begin with">C:\Temp\</Image>
+				<!--LSASS dump via comsvcs.dll MiniDump.-->
+				<Rule name="technique_id=T1003.001,technique_name=LSASS Memory" groupRelation="and">
+					<Image condition="end with">\rundll32.exe</Image>
+					<ImageLoaded condition="end with">\comsvcs.dll</ImageLoaded>
+				</Rule>
+				<!--.NET runtime inside processes that should never host it: execute-assembly (Rubeus, SharpHound, Seatbelt) in injected processes.-->
+				<Rule name="technique_id=T1620,technique_name=Reflective Code Loading" groupRelation="and">
+					<Image condition="contains any">\rundll32.exe;\regsvr32.exe;\dllhost.exe;\wermgr.exe;\WerFault.exe;\mstsc.exe;\notepad.exe;\spoolsv.exe;\gpupdate.exe;\SearchIndexer.exe;\runonce.exe;\wuauclt.exe;\sihost.exe;\RuntimeBroker.exe;\winlogon.exe</Image>
+					<ImageLoaded condition="end with">\clr.dll</ImageLoaded>
+				</Rule>
+			</ImageLoad>
+		</RuleGroup>
+
+		<!--EVENT 8: CREATE REMOTE THREAD. Log everything (injection).-->
+		<RuleGroup name="" groupRelation="or">
+			<CreateRemoteThread onmatch="exclude">
+			</CreateRemoteThread>
+		</RuleGroup>
+
+		<!--EVENT 9: RAW ACCESS READ. Log everything (NTDS.dit/SAM copies, MBR wipers).-->
+		<RuleGroup name="" groupRelation="or">
+			<RawAccessRead onmatch="exclude">
+			</RawAccessRead>
+		</RuleGroup>
+
+		<!--EVENT 10: PROCESS ACCESS. Every handle to LSASS that can read memory, and any access from unbacked (injected) code.-->
+		<RuleGroup name="" groupRelation="or">
+			<ProcessAccess onmatch="include">
+				<TargetImage name="technique_id=T1003.001,technique_name=LSASS Memory" condition="end with">\lsass.exe</TargetImage>
+				<CallTrace name="technique_id=T1055,technique_name=Process Injection" condition="contains">UNKNOWN</CallTrace>
+			</ProcessAccess>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<ProcessAccess onmatch="exclude">
+				<!--Rights that cannot read process memory (query/synchronize only). Dumping needs PROCESS_VM_READ (0x10).-->
+				<GrantedAccess condition="is any">0x1000;0x1400;0x400;0x100000;0x101000</GrantedAccess>
+			</ProcessAccess>
+		</RuleGroup>
+
+		<!--EVENT 11: FILE CREATED. Drop folders, script/payload/dump types anywhere, files written by script hosts and LOLBins, ADMIN$ arrivals, persistence and web shells.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileCreate onmatch="include">
+				<!--Drop folders seen across the intrusions.-->
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\ProgramData\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Users\Public\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\PerfLogs\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Windows\Temp\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Intel\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Temp\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Recovery\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Windows\Tasks\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Windows\Tracing\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Windows\Fonts\</TargetFilename>
+				<TargetFilename name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="begin with">C:\Windows\debug\</TargetFilename>
+				<!--Scripts, containers, installers and dumps anywhere. New executables of any extension are covered by event 29.-->
+				<TargetFilename name="technique_id=T1059.001,technique_name=PowerShell" condition="end with">.ps1</TargetFilename>
+				<TargetFilename name="technique_id=T1059.001,technique_name=PowerShell" condition="end with">.psm1</TargetFilename>
+				<TargetFilename name="technique_id=T1059.003,technique_name=Windows Command Shell" condition="end with">.bat</TargetFilename>
+				<TargetFilename name="technique_id=T1059.003,technique_name=Windows Command Shell" condition="end with">.cmd</TargetFilename>
+				<TargetFilename name="technique_id=T1059.005,technique_name=Visual Basic" condition="end with">.vbs</TargetFilename>
+				<TargetFilename name="technique_id=T1059.005,technique_name=Visual Basic" condition="end with">.vbe</TargetFilename>
+				<TargetFilename name="technique_id=T1059.007,technique_name=JavaScript" condition="end with">.js</TargetFilename>
+				<TargetFilename name="technique_id=T1059.007,technique_name=JavaScript" condition="end with">.jse</TargetFilename>
+				<TargetFilename name="technique_id=T1059,technique_name=Command and Scripting Interpreter" condition="end with">.wsf</TargetFilename>
+				<TargetFilename name="technique_id=T1218.005,technique_name=Mshta" condition="end with">.hta</TargetFilename>
+				<TargetFilename name="technique_id=T1059.006,technique_name=Python" condition="end with">.py</TargetFilename>
+				<TargetFilename name="technique_id=T1204.002,technique_name=Malicious File" condition="end with">.lnk</TargetFilename>
+				<TargetFilename name="technique_id=T1553.005,technique_name=Mark-of-the-Web Bypass" condition="end with">.iso</TargetFilename>
+				<TargetFilename name="technique_id=T1553.005,technique_name=Mark-of-the-Web Bypass" condition="end with">.img</TargetFilename>
+				<TargetFilename name="technique_id=T1553.005,technique_name=Mark-of-the-Web Bypass" condition="end with">.vhd</TargetFilename>
+				<TargetFilename name="technique_id=T1553.005,technique_name=Mark-of-the-Web Bypass" condition="end with">.vhdx</TargetFilename>
+				<TargetFilename name="technique_id=T1218.007,technique_name=Msiexec" condition="end with">.msi</TargetFilename>
+				<TargetFilename name="technique_id=T1204.002,technique_name=Malicious File" condition="end with">.one</TargetFilename>
+				<TargetFilename name="technique_id=T1204.002,technique_name=Malicious File" condition="end with">.xll</TargetFilename>
+				<TargetFilename name="technique_id=T1204.002,technique_name=Malicious File" condition="end with">.scr</TargetFilename>
+				<TargetFilename name="technique_id=T1218.002,technique_name=Control Panel" condition="end with">.cpl</TargetFilename>
+				<TargetFilename name="technique_id=T1204.002,technique_name=Malicious File" condition="end with">.jar</TargetFilename>
+				<TargetFilename name="technique_id=T1560.001,technique_name=Archive via Utility" condition="end with">.zip</TargetFilename>
+				<TargetFilename name="technique_id=T1560.001,technique_name=Archive via Utility" condition="end with">.7z</TargetFilename>
+				<TargetFilename name="technique_id=T1560.001,technique_name=Archive via Utility" condition="end with">.rar</TargetFilename>
+				<TargetFilename name="technique_id=T1003.001,technique_name=LSASS Memory" condition="end with">.dmp</TargetFilename>
+				<TargetFilename name="technique_id=T1003.003,technique_name=NTDS" condition="end with">.dit</TargetFilename>
+				<TargetFilename name="technique_id=T1558,technique_name=Steal or Forge Kerberos Tickets" condition="end with">.kirbi</TargetFilename>
+				<TargetFilename name="technique_id=T1003.002,technique_name=Security Account Manager" condition="end with">.save</TargetFilename>
+				<!--Files written by script hosts and LOLBins, whatever the name: dumps with disguised extensions, discovery output, payloads.-->
+				<Image name="technique_id=T1218.011,technique_name=Rundll32" condition="image">rundll32.exe</Image>
+				<Image name="technique_id=T1218.010,technique_name=Regsvr32" condition="image">regsvr32.exe</Image>
+				<Image name="technique_id=T1218.005,technique_name=Mshta" condition="image">mshta.exe</Image>
+				<Image name="technique_id=T1059.005,technique_name=Visual Basic" condition="image">wscript.exe</Image>
+				<Image name="technique_id=T1059.005,technique_name=Visual Basic" condition="image">cscript.exe</Image>
+				<Image name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="image">certutil.exe</Image>
+				<Image name="technique_id=T1197,technique_name=BITS Jobs" condition="image">bitsadmin.exe</Image>
+				<Image name="technique_id=T1105,technique_name=Ingress Tool Transfer" condition="image">curl.exe</Image>
+				<Image name="technique_id=T1047,technique_name=Windows Management Instrumentation" condition="image">wmic.exe</Image>
+				<Image name="technique_id=T1059.003,technique_name=Windows Command Shell" condition="image">cmd.exe</Image>
+				<Image name="technique_id=T1059.001,technique_name=PowerShell" condition="image">powershell.exe</Image>
+				<Image name="technique_id=T1059.001,technique_name=PowerShell" condition="image">pwsh.exe</Image>
+				<!--Remote file copies arrive as writes by the System process (ADMIN$/C$ lateral movement, ransomware staging).-->
+				<Rule name="technique_id=T1570,technique_name=Lateral Tool Transfer" groupRelation="and">
+					<Image condition="is">System</Image>
+					<TargetFilename condition="end with">.exe</TargetFilename>
+				</Rule>
+				<Rule name="technique_id=T1570,technique_name=Lateral Tool Transfer" groupRelation="and">
+					<Image condition="is">System</Image>
+					<TargetFilename condition="end with">.dll</TargetFilename>
+				</Rule>
+				<Rule name="technique_id=T1570,technique_name=Lateral Tool Transfer" groupRelation="and">
+					<Image condition="is">System</Image>
+					<TargetFilename condition="end with">.bat</TargetFilename>
+				</Rule>
+				<Rule name="technique_id=T1570,technique_name=Lateral Tool Transfer" groupRelation="and">
+					<Image condition="is">System</Image>
+					<TargetFilename condition="end with">.ps1</TargetFilename>
+				</Rule>
+				<!--Persistence locations.-->
+				<TargetFilename name="technique_id=T1053.005,technique_name=Scheduled Task" condition="begin with">C:\Windows\System32\Tasks\</TargetFilename>
+				<TargetFilename name="technique_id=T1053.005,technique_name=Scheduled Task" condition="begin with">C:\Windows\SysWOW64\Tasks\</TargetFilename>
+				<TargetFilename name="technique_id=T1547.001,technique_name=Registry Run Keys / Startup Folder" condition="contains">\Start Menu\Programs\Startup\</TargetFilename>
+				<TargetFilename name="technique_id=T1546.003,technique_name=Windows Management Instrumentation Event Subscription" condition="end with">.mof</TargetFilename>
+				<!--Web shells on exploited servers (Exchange, IIS, Confluence and other Java apps).-->
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="begin with">C:\inetpub\</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.aspx</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.ashx</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.asmx</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.jsp</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.jspx</TargetFilename>
+				<TargetFilename name="technique_id=T1505.003,technique_name=Web Shell" condition="end with">.php</TargetFilename>
+			</FileCreate>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<FileCreate onmatch="exclude">
+				<!--Narrow noise exclusions. Each path is written only by the component named.-->
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</TargetFilename> <!--Defender scans, definitions and platform updates-->
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Search\Data\</TargetFilename> <!--Windows Search index-->
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Diagnosis\</TargetFilename> <!--Windows telemetry-->
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Network\Downloader\</TargetFilename> <!--BITS job database (job payloads land in their target folder and are still logged)-->
+				<TargetFilename condition="contains">\__PSScriptPolicyTest_</TargetFilename> <!--PowerShell writes and deletes a policy test script on every start-->
+				<TargetFilename condition="contains">\PowerShell\StartupProfileData-</TargetFilename> <!--PowerShell startup cache-->
+				<Rule groupRelation="and"> <!--Explorer's recent-items shortcuts-->
+					<Image condition="is">C:\Windows\explorer.exe</Image>
+					<TargetFilename condition="contains">\AppData\Roaming\Microsoft\Windows\Recent\</TargetFilename>
+					<TargetFilename condition="end with">.lnk</TargetFilename>
+				</Rule>
+			</FileCreate>
+		</RuleGroup>
+
+		<!--EVENTS 12-14: REGISTRY. Persistence, security-setting changes, credential exposure, remote access and logging tampering.-->
+		<RuleGroup name="" groupRelation="or">
+			<RegistryEvent onmatch="include">
+				<!--Autostart.-->
+				<TargetObject name="technique_id=T1547.001,technique_name=Registry Run Keys / Startup Folder" condition="contains">\CurrentVersion\Run</TargetObject> <!--Run, RunOnce, RunOnceEx, RunServices-->
+				<TargetObject name="technique_id=T1547.001,technique_name=Registry Run Keys / Startup Folder" condition="contains">\Policies\Explorer\Run</TargetObject>
+				<TargetObject name="technique_id=T1547.001,technique_name=Registry Run Keys / Startup Folder" condition="contains">\Explorer\User Shell Folders\</TargetObject>
+				<TargetObject name="technique_id=T1547.004,technique_name=Winlogon Helper DLL" condition="contains">\Microsoft\Windows NT\CurrentVersion\Winlogon\</TargetObject> <!--Userinit, Shell, Notify, SpecialAccounts (hidden users)-->
+				<TargetObject name="technique_id=T1546.012,technique_name=Image File Execution Options Injection" condition="contains">\Image File Execution Options\</TargetObject>
+				<TargetObject name="technique_id=T1546.012,technique_name=Image File Execution Options Injection" condition="contains">\SilentProcessExit\</TargetObject>
+				<TargetObject name="technique_id=T1547.001,technique_name=Registry Run Keys / Startup Folder" condition="contains">\Session Manager\BootExecute</TargetObject>
+				<TargetObject name="technique_id=T1546.010,technique_name=AppInit DLLs" condition="contains">\Windows NT\CurrentVersion\Windows\AppInit_DLLs</TargetObject>
+				<TargetObject name="technique_id=T1546.009,technique_name=AppCert DLLs" condition="contains">\Session Manager\AppCertDlls\</TargetObject>
+				<TargetObject name="technique_id=T1547.010,technique_name=Port Monitors" condition="contains">\Control\Print\Monitors\</TargetObject>
+				<TargetObject name="technique_id=T1546.007,technique_name=Netsh Helper DLL" condition="begin with">HKLM\SOFTWARE\Microsoft\NetSh\</TargetObject>
+				<!--Scheduled task registration.-->
+				<TargetObject name="technique_id=T1053.005,technique_name=Scheduled Task" condition="contains">\Schedule\TaskCache\Tree\</TargetObject>
+				<TargetObject name="technique_id=T1053.005,technique_name=Scheduled Task" condition="contains">\Schedule\TaskCache\Tasks\</TargetObject>
+				<!--Services: new or modified service binaries (PsExec, Cobalt Strike jump, RMM tools, Defender Start=4).-->
+				<Rule name="technique_id=T1543.003,technique_name=Windows Service" groupRelation="and">
+					<TargetObject condition="begin with">HKLM\System\CurrentControlSet\Services\</TargetObject>
+					<TargetObject condition="end with">\ImagePath</TargetObject>
+				</Rule>
+				<Rule name="technique_id=T1543.003,technique_name=Windows Service" groupRelation="and">
+					<TargetObject condition="begin with">HKLM\System\CurrentControlSet\Services\</TargetObject>
+					<TargetObject condition="end with">\ServiceDll</TargetObject>
+				</Rule>
+				<Rule name="technique_id=T1685,technique_name=Disable or Modify Tools" groupRelation="and">
+					<TargetObject condition="begin with">HKLM\System\CurrentControlSet\Services\</TargetObject>
+					<TargetObject condition="end with">\Start</TargetObject>
+				</Rule>
+				<Rule name="technique_id=T1543.003,technique_name=Windows Service" groupRelation="and">
+					<TargetObject condition="begin with">HKLM\System\CurrentControlSet\Services\</TargetObject>
+					<TargetObject condition="end with">\FailureCommand</TargetObject>
+				</Rule>
+				<TargetObject name="technique_id=T1688,technique_name=Safe Mode Boot" condition="begin with">HKLM\System\CurrentControlSet\Control\SafeBoot\</TargetObject>
+				<!--Defender and other security tooling.-->
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="begin with">HKLM\SOFTWARE\Policies\Microsoft\Windows Defender\</TargetObject>
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="contains">\Windows Defender\Exclusions\</TargetObject>
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="contains">\Windows Defender\Features\TamperProtection</TargetObject>
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="contains">\Windows Defender\Real-Time Protection\</TargetObject>
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="contains">\Microsoft\Security Center\</TargetObject>
+				<TargetObject name="technique_id=T1548.002,technique_name=Bypass User Account Control" condition="contains">\CurrentVersion\Policies\System\</TargetObject> <!--EnableLUA, LocalAccountTokenFilterPolicy-->
+				<!--Firewall: disabled, or rules added (e.g. allow RDP).-->
+				<Rule name="technique_id=T1686,technique_name=Disable or Modify System Firewall" groupRelation="and">
+					<TargetObject condition="contains">\SharedAccess\Parameters\FirewallPolicy\</TargetObject>
+					<TargetObject condition="end with">\EnableFirewall</TargetObject>
+				</Rule>
+				<TargetObject name="technique_id=T1686,technique_name=Disable or Modify System Firewall" condition="contains">\SharedAccess\Parameters\FirewallPolicy\FirewallRules\</TargetObject>
+				<!--Logging tampering, including Sysmon itself.-->
+				<TargetObject name="technique_id=T1685.001,technique_name=Disable or Modify Windows Event Log" condition="begin with">HKLM\System\CurrentControlSet\Services\EventLog\</TargetObject>
+				<TargetObject name="technique_id=T1685.001,technique_name=Disable or Modify Windows Event Log" condition="contains">\WINEVT\Channels\</TargetObject>
+				<TargetObject name="technique_id=T1685,technique_name=Disable or Modify Tools" condition="contains">\Control\WMI\Autologger\</TargetObject>
+				<!--Credential exposure.-->
+				<TargetObject name="technique_id=T1556,technique_name=Modify Authentication Process" condition="contains">\SecurityProviders\WDigest\</TargetObject>
+				<TargetObject name="technique_id=T1556,technique_name=Modify Authentication Process" condition="begin with">HKLM\System\CurrentControlSet\Control\Lsa\</TargetObject> <!--RunAsPPL, DisableRestrictedAdmin, packages-->
+				<!--Remote access: RDP enabled or moved, port proxies (netsh interface portproxy).-->
+				<TargetObject name="technique_id=T1021.001,technique_name=Remote Desktop Protocol" condition="begin with">HKLM\System\CurrentControlSet\Control\Terminal Server\</TargetObject>
+				<TargetObject name="technique_id=T1090.001,technique_name=Internal Proxy" condition="begin with">HKLM\System\CurrentControlSet\Services\PortProxy\</TargetObject>
+				<!--Hijacks: COM in the user hive, UAC-bypass shell handlers.-->
+				<Rule name="technique_id=T1546.015,technique_name=Component Object Model Hijacking" groupRelation="and">
+					<TargetObject condition="begin with">HKU\</TargetObject>
+					<TargetObject condition="contains">\InprocServer32</TargetObject>
+				</Rule>
+				<TargetObject name="technique_id=T1548.002,technique_name=Bypass User Account Control" condition="contains">\ms-settings\shell\open\command</TargetObject>
+				<TargetObject name="technique_id=T1548.002,technique_name=Bypass User Account Control" condition="contains">\exefile\shell\open\command</TargetObject>
+				<TargetObject name="technique_id=T1548.002,technique_name=Bypass User Account Control" condition="contains">\mscfile\shell\open\command</TargetObject>
+				<TargetObject name="technique_id=T1548.002,technique_name=Bypass User Account Control" condition="contains">\Folder\shell\open\command</TargetObject>
+				<!--Payloads stored in the registry (Gootloader uses Personalization).-->
+				<TargetObject name="technique_id=T1112,technique_name=Modify Registry" condition="contains">\Software\Microsoft\Personalization\</TargetObject>
+			</RegistryEvent>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<RegistryEvent onmatch="exclude">
+				<TargetObject condition="end with">\DynamicInfo</TargetObject> <!--Task Scheduler updates this on every task run-->
+			</RegistryEvent>
+		</RuleGroup>
+
+		<!--EVENT 15: FILE STREAM CREATED. Log everything: Zone.Identifier records where downloads came from.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileCreateStreamHash onmatch="exclude">
+			</FileCreateStreamHash>
+		</RuleGroup>
+
+		<!--EVENTS 17-18: NAMED PIPES. Log everything except browsers' own IPC (by full path: Cobalt Strike also uses mojo.* pipe names).-->
+		<RuleGroup name="" groupRelation="or">
+			<PipeEvent onmatch="exclude">
+				<Image condition="is">C:\Program Files\Google\Chrome\Application\chrome.exe</Image>
+				<Image condition="is">C:\Program Files (x86)\Google\Chrome\Application\chrome.exe</Image>
+				<Image condition="is">C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe</Image>
+				<Image condition="is">C:\Program Files\Mozilla Firefox\firefox.exe</Image>
+			</PipeEvent>
+		</RuleGroup>
+
+		<!--EVENTS 19-21: WMI EVENT SUBSCRIPTIONS. Log everything.-->
+		<RuleGroup name="" groupRelation="or">
+			<WmiEvent onmatch="exclude">
+			</WmiEvent>
+		</RuleGroup>
+
+		<!--EVENT 22: DNS QUERY. Log everything: C2 domains, tunnels, RMM and file-sharing services.-->
+		<RuleGroup name="" groupRelation="or">
+			<DnsQuery onmatch="exclude">
+			</DnsQuery>
+		</RuleGroup>
+
+		<!--EVENT 23: FILE DELETE, ARCHIVED. Keep copies of tools attackers delete: anything from the system drop folders, executables from other user-writable places, scripts anywhere.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileDelete onmatch="include">
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\PerfLogs\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Users\Public\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Intel\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Temp\</TargetFilename>
+				<Rule name="technique_id=T1070.004,technique_name=File Deletion" groupRelation="and">
+					<TargetFilename condition="begin with">C:\ProgramData\</TargetFilename>
+					<IsExecutable condition="is">true</IsExecutable>
+				</Rule>
+				<Rule name="technique_id=T1070.004,technique_name=File Deletion" groupRelation="and">
+					<TargetFilename condition="begin with">C:\Users\</TargetFilename>
+					<IsExecutable condition="is">true</IsExecutable>
+				</Rule>
+				<Rule name="technique_id=T1070.004,technique_name=File Deletion" groupRelation="and">
+					<TargetFilename condition="begin with">C:\Windows\</TargetFilename> <!--PsExec-style service binaries and Windows\Temp tools-->
+					<IsExecutable condition="is">true</IsExecutable>
+				</Rule>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.ps1</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.bat</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.cmd</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.vbs</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.hta</TargetFilename>
+			</FileDelete>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<FileDelete onmatch="exclude">
+				<!--Windows servicing and app updates delete executables constantly.-->
+				<TargetFilename condition="begin with">C:\Windows\SoftwareDistribution\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\WinSxS\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\servicing\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\Installer\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\assembly\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\Microsoft.NET\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\System32\DriverStore\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</TargetFilename>
+				<TargetFilename condition="contains">\__PSScriptPolicyTest_</TargetFilename>
+			</FileDelete>
+		</RuleGroup>
+
+		<!--EVENT 24: CLIPBOARD. Off: captures user data and needs explicit client approval.-->
+		<RuleGroup name="" groupRelation="or">
+			<ClipboardChange onmatch="include">
+			</ClipboardChange>
+		</RuleGroup>
+
+		<!--EVENT 25: PROCESS TAMPERING (hollowing, herpaderping). Log everything.-->
+		<RuleGroup name="" groupRelation="or">
+			<ProcessTampering onmatch="exclude">
+			</ProcessTampering>
+		</RuleGroup>
+
+		<!--EVENT 26: FILE DELETE, LOGGED ONLY. Wider than event 23, without keeping copies: drop folders, any executable, scripts, dumps and archives.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileDeleteDetected onmatch="include">
+				<IsExecutable name="technique_id=T1070.004,technique_name=File Deletion" condition="is">true</IsExecutable>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\ProgramData\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Users\Public\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\PerfLogs\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Windows\Temp\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Intel\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="begin with">C:\Temp\</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.ps1</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.bat</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.cmd</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.vbs</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.hta</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.dmp</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.zip</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.7z</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.rar</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.dit</TargetFilename>
+				<TargetFilename name="technique_id=T1070.004,technique_name=File Deletion" condition="end with">.kirbi</TargetFilename>
+				<TargetFilename name="technique_id=T1685.005,technique_name=Clear Windows Event Logs" condition="end with">.evtx</TargetFilename>
+			</FileDeleteDetected>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<FileDeleteDetected onmatch="exclude">
+				<TargetFilename condition="begin with">C:\Windows\SoftwareDistribution\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\WinSxS\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\servicing\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\Installer\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\assembly\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\Microsoft.NET\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\System32\DriverStore\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Windows Defender\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Search\Data\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Diagnosis\</TargetFilename>
+				<TargetFilename condition="contains">\__PSScriptPolicyTest_</TargetFilename>
+			</FileDeleteDetected>
+		</RuleGroup>
+
+		<!--EVENTS 27-28: BLOCKING. Off: these change the system being investigated. Enable only for containment, with client approval.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileBlockExecutable onmatch="include">
+			</FileBlockExecutable>
+		</RuleGroup>
+		<RuleGroup name="" groupRelation="or">
+			<FileBlockShredding onmatch="include">
+			</FileBlockShredding>
+		</RuleGroup>
+
+		<!--EVENT 29: NEW EXECUTABLE FILE. Every new PE file, whatever its extension, except Windows servicing and Defender updates.-->
+		<RuleGroup name="" groupRelation="or">
+			<FileExecutableDetected onmatch="exclude">
+				<TargetFilename condition="begin with">C:\Windows\SoftwareDistribution\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\WinSxS\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\servicing\</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\assembly\NativeImages_</TargetFilename>
+				<TargetFilename condition="begin with">C:\Windows\System32\DriverStore\FileRepository\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Platform\</TargetFilename>
+				<TargetFilename condition="begin with">C:\ProgramData\Microsoft\Windows Defender\Definition Updates\</TargetFilename>
+			</FileExecutableDetected>
+		</RuleGroup>
+
+	</EventFiltering>
+</Sysmon>
