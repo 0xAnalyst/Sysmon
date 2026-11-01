@@ -26,7 +26,11 @@ async function readFile(file) {
   // PowerShell redirects write UTF-16; detect the BOM.
   if (buf[0] === 0xff && buf[1] === 0xfe) return new TextDecoder('utf-16le').decode(buf);
   if (buf[0] === 0xfe && buf[1] === 0xff) return new TextDecoder('utf-16be').decode(buf);
-  return new TextDecoder().decode(buf);
+  // Some tools write UTF-16LE without a BOM: most odd bytes are zero.
+  const n = Math.min(buf.length, 4096);
+  let zeros = 0;
+  for (let i = 1; i < n; i += 2) if (buf[i] === 0) zeros++;
+  return new TextDecoder(zeros > n / 4 ? 'utf-16le' : 'utf-8').decode(buf);
 }
 
 function safety(path, platform) {
