@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sysmon Config Builder</title>
+  <meta name="description" content="Build, tune and export Sysmon configurations for the latest Sysmon schema, in the browser.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M6 17h5l3-8 4 15 3-7h5' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M6 17h5l3-8 4 15 3-7h5"/></svg>
+      <div>
+        <h1>Sysmon Config Builder</h1>
+        <p id="target-label"></p>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="undo" class="ghost" title="Undo (Ctrl/⌘+Z)" aria-label="Undo" disabled>↶</button>
+      <button id="redo" class="ghost" title="Redo (Ctrl/⌘+Shift+Z)" aria-label="Redo" disabled>↷</button>
+      <span class="sep"></span>
+      <label class="sr-only" for="preset">Start from</label>
+      <select id="preset"></select>
+      <button id="load-preset">Load</button>
+      <span class="sep"></span>
+      <button id="import-file" title="Open a sysmon .xml file">Import file</button>
+      <button id="import-paste">Paste XML</button>
+      <input type="file" id="file-input" accept=".xml,text/xml" hidden>
+      <span class="sep"></span>
+      <button id="toggle-preview" aria-pressed="true">XML</button>
+      <button id="share" title="Copy a link that contains this config">Share</button>
+      <button id="download" class="primary" title="Download (Ctrl/⌘+S)">Download</button>
+    </div>
+  </header>
+
+  <div class="layout" id="layout">
+    <nav class="sidebar" id="sidebar" aria-label="Configuration sections"></nav>
+    <main class="main" id="main" tabindex="-1"></main>
+    <aside class="preview" id="preview" aria-label="Generated XML">
+      <div class="preview-bar">
+        <strong>sysmonconfig.xml</strong>
+        <label><input type="checkbox" id="opt-comments" checked> Comments</label>
+        <label><input type="checkbox" id="opt-disabled" checked> Keep disabled</label>
+        <button id="copy">Copy</button>
+      </div>
+      <pre id="xml"><code></code></pre>
+      <div class="deploy" id="deploy"></div>
+    </aside>
+  </div>
+
+  <dialog id="paste-dialog">
+    <form method="dialog">
+      <h2>Paste Sysmon XML</h2>
+      <p>Any Sysmon config works: SwiftOnSecurity, sysmon-modular, MSTIC, or your own. Older schemas are upgraded.</p>
+      <textarea id="paste-text" spellcheck="false" placeholder="&lt;Sysmon schemaversion=&quot;4.90&quot;&gt;..."></textarea>
+      <div class="dialog-actions">
+        <button value="cancel">Cancel</button>
+        <button value="ok" class="primary">Import</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="keys-dialog">
+    <form method="dialog">
+      <h2>Keyboard shortcuts</h2>
+      <table class="keys">
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>Z</kbd></td><td>Undo</td></tr>
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>Shift</kbd> <kbd>Z</kbd> or <kbd>Ctrl</kbd> <kbd>Y</kbd></td><td>Redo</td></tr>
+        <tr><td><kbd>Ctrl/⌘</kbd> <kbd>S</kbd></td><td>Download the config</td></tr>
+        <tr><td><kbd>/</kbd></td><td>Filter rules in the current event</td></tr>
+        <tr><td><kbd>?</kbd></td><td>This help</td></tr>
+        <tr><td>Drag <span class="grip-sample">⋮⋮</span></td><td>Reorder rules within a list</td></tr>
+      </table>
+      <div class="dialog-actions"><button value="close" class="primary">Close</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
