@@ -296,3 +296,6 @@ Write-Step 'Self-test passed: Sysmon is logging process creation'
 $state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statePath -Encoding UTF8
 Write-Step "Done. State and backups: $StateDir"
 Write-Step 'Next: forward or collect logs regularly (Collect-SysmonIR.ps1), and run Remove-SysmonIR.ps1 at the end of the engagement.'
+
+# Native tools leave their own exit codes behind (robocopy returns 1 on success); report success explicitly.
+exit 0
