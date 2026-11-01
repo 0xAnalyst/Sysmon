@@ -31,6 +31,15 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 function Write-Step($msg) { Write-Host "[SysmonIR] $msg" }
 
+# Windows PowerShell 5.1 turns a native program's redirected stderr into a terminating error when
+# $ErrorActionPreference is Stop (Sysmon prints its banner to stderr). Run native commands with
+# Continue and return their output, stderr included, as plain text lines; check $LASTEXITCODE after.
+function Invoke-Native([scriptblock]$Block) {
+  $eap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $Block 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $eap }
+}
+
 $id = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'Run this script from an elevated PowerShell (Administrator).'
@@ -65,14 +74,14 @@ $exported = 0
 foreach ($ch in $channels) {
   if (-not (Get-WinEvent -ListLog $ch -ErrorAction SilentlyContinue)) { continue }
   $file = Join-Path $dest ('logs\' + ($ch -replace '[\\/]', '%4') + '.evtx')
-  & wevtutil.exe epl $ch $file 2>$null
+  Invoke-Native { & wevtutil.exe epl $ch $file } | Out-Null
   if ($LASTEXITCODE -eq 0) { $exported++ } else { Write-Warning "Could not export $ch" }
 }
 Write-Step "Exported $exported event logs"
 
 # --- Sysmon config and deployment backups ----------------------------------------------------
 if ($state -and $state.sysmon -and $state.sysmon.exe -and (Test-Path -LiteralPath $state.sysmon.exe)) {
-  & $state.sysmon.exe -c 2>&1 | Out-File -Encoding utf8 (Join-Path $dest 'sysmon-config-active.txt')
+  Invoke-Native { & $state.sysmon.exe -c } | Out-File -Encoding utf8 (Join-Path $dest 'sysmon-config-active.txt')
 }
 if ($state -and $state.configPath -and (Test-Path -LiteralPath $state.configPath)) {
   Copy-Item -LiteralPath $state.configPath -Destination (Join-Path $dest 'sysmon-config-deployed.xml')
@@ -92,7 +101,7 @@ if (-not $NoArchive) {
     if (-not (Test-Path -LiteralPath $src)) { continue }
     $to = Join-Path $dest ("deleted-files\" + $drive.DeviceID.TrimEnd(':'))
     # The archive has a SYSTEM-only ACL; backup mode (/B) reads it with the administrator's backup privilege.
-    & robocopy.exe $src $to /E /B /COPY:DT /R:1 /W:1 /NP /NFL /NDL /NJH /NJS | Out-Null
+    Invoke-Native { & robocopy.exe $src $to /E /B /COPY:DT /R:1 /W:1 /NP /NFL /NDL /NJH /NJS } | Out-Null
     if ($LASTEXITCODE -ge 8) { Write-Warning "robocopy could not copy $src (exit $LASTEXITCODE)" }
     $archived += @(Get-ChildItem -LiteralPath $to -Recurse -File -ErrorAction SilentlyContinue).Count
   }

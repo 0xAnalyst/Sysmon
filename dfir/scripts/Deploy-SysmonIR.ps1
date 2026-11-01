@@ -54,6 +54,15 @@ Set-StrictMode -Version 2
 
 function Write-Step($msg) { Write-Host "[SysmonIR] $msg" }
 
+# Windows PowerShell 5.1 turns a native program's redirected stderr into a terminating error when
+# $ErrorActionPreference is Stop (Sysmon prints its banner to stderr). Run native commands with
+# Continue and return their output, stderr included, as plain text lines; check $LASTEXITCODE after.
+function Invoke-Native([scriptblock]$Block) {
+  $eap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $Block 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $eap }
+}
+
 function Assert-Admin {
   $id = [Security.Principal.WindowsIdentity]::GetCurrent()
   if (-not (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
@@ -63,7 +72,7 @@ function Assert-Admin {
 
 # Runs a Sysmon command and fails on a non-zero exit code or error text in its output.
 function Invoke-Sysmon([string]$exe, [string[]]$arguments) {
-  $out = & $exe @arguments 2>&1 | Out-String
+  $out = Invoke-Native { & $exe @arguments } | Out-String
   $code = $LASTEXITCODE
   if ($code -ne 0 -or $out -match '(?i)\b(error|invalid|failed)\b') {
     throw "Sysmon $($arguments -join ' ') failed (exit $code):`n$out"
@@ -81,7 +90,7 @@ function Get-SysmonInstall {
     if ($info.FileDescription -like 'System activity monitor*' -or $info.OriginalFilename -like 'Sysmon*') {
       # The minifilter driver uses Sysmon's registered altitude, 385201.
       $driver = $null
-      foreach ($line in (& fltmc.exe filters 2>$null)) {
+      foreach ($line in (Invoke-Native { & fltmc.exe filters })) {
         if ($line -match '^\s*(\S+)\s+\d+\s+385201\b') { $driver = $Matches[1] }
       }
       return [pscustomobject]@{ ServiceName = $svc.Name; Exe = $path; Version = $info.FileVersion; Driver = $driver; State = $svc.State }
@@ -194,10 +203,10 @@ if ($firstRun) {
   if ($existing) {
     Write-Step "Sysmon $($existing.Version) already installed as service '$($existing.ServiceName)' (driver '$($existing.Driver)')$(if ($native) { ', built-in Windows feature' })"
     $evtx = Join-Path $backup 'sysmon-log-before.evtx'
-    if (-not (Test-Path $evtx)) { & wevtutil.exe epl 'Microsoft-Windows-Sysmon/Operational' $evtx 2>$null }
-    & $existing.Exe -c 2>&1 | Out-File -Encoding utf8 (Join-Path $backup 'sysmon-config-before.txt')
+    if (-not (Test-Path $evtx)) { Invoke-Native { & wevtutil.exe epl 'Microsoft-Windows-Sysmon/Operational' $evtx } | Out-Null }
+    Invoke-Native { & $existing.Exe -c } | Out-File -Encoding utf8 (Join-Path $backup 'sysmon-config-before.txt')
     if ($existing.Driver) {
-      & reg.exe export "HKLM\SYSTEM\CurrentControlSet\Services\$($existing.Driver)\Parameters" (Join-Path $backup 'sysmon-parameters-before.reg') /y | Out-Null
+      Invoke-Native { & reg.exe export "HKLM\SYSTEM\CurrentControlSet\Services\$($existing.Driver)\Parameters" (Join-Path $backup 'sysmon-parameters-before.reg') /y } | Out-Null
     }
   }
   $state.sysmon = [pscustomobject][ordered]@{
@@ -238,8 +247,8 @@ if (-not $SkipLogSizes) {
     if (-not ($state.logs.PSObject.Properties.Name -contains $name)) {
       $state.logs | Add-Member -NotePropertyName $name -NotePropertyValue ([pscustomobject]@{ maxBytesBefore = $log.MaximumSizeInBytes; enabledBefore = $log.IsEnabled })
     }
-    if ($log.MaximumSizeInBytes -lt $want) { & wevtutil.exe sl $name "/ms:$want" | Out-Null }
-    if (-not $log.IsEnabled) { & wevtutil.exe sl $name /e:true | Out-Null }
+    if ($log.MaximumSizeInBytes -lt $want) { Invoke-Native { & wevtutil.exe sl $name "/ms:$want" } | Out-Null }
+    if (-not $log.IsEnabled) { Invoke-Native { & wevtutil.exe sl $name /e:true } | Out-Null }
   }
   Write-Step ("Event log sizes raised (Sysmon log: {0} MB)" -f $SysmonLogSizeMB)
 }
@@ -248,7 +257,7 @@ if (-not $SkipLogSizes) {
 if (-not $SkipAuditPolicy) {
   $auditBackup = Join-Path $backup 'auditpol-before.csv'
   if ($firstRun -or -not (Test-Path $auditBackup)) {
-    & auditpol.exe /backup "/file:$auditBackup" | Out-Null
+    Invoke-Native { & auditpol.exe /backup "/file:$auditBackup" } | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'auditpol /backup failed.' }
     $state.audit.backup = $auditBackup
     $saved = @()
@@ -259,7 +268,7 @@ if (-not $SkipAuditPolicy) {
     $state.audit.registry = $saved
   }
   foreach ($guid in $AuditSubcategories.Keys) {
-    & auditpol.exe /set "/subcategory:$guid" /success:enable /failure:enable | Out-Null
+    Invoke-Native { & auditpol.exe /set "/subcategory:$guid" /success:enable /failure:enable } | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Warning "Could not enable audit subcategory $($AuditSubcategories[$guid])" }
   }
   foreach ($s in $RegistrySettings) {

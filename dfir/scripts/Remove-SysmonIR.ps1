@@ -29,6 +29,15 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2
 function Write-Step($msg) { Write-Host "[SysmonIR] $msg" }
 
+# Windows PowerShell 5.1 turns a native program's redirected stderr into a terminating error when
+# $ErrorActionPreference is Stop (Sysmon prints its banner to stderr). Run native commands with
+# Continue and return their output, stderr included, as plain text lines; check $LASTEXITCODE after.
+function Invoke-Native([scriptblock]$Block) {
+  $eap = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $Block 2>&1 | ForEach-Object { "$_" } } finally { $ErrorActionPreference = $eap }
+}
+
 $id = [Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not (New-Object Security.Principal.WindowsPrincipal $id).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'Run this script from an elevated PowerShell (Administrator).'
@@ -47,7 +56,7 @@ if ($state.sysmon.preExisting) {
   $reg = Join-Path $backup 'sysmon-parameters-before.reg'
   if (Test-Path -LiteralPath $reg) {
     # Sysmon reloads its rules when the Parameters key changes.
-    & reg.exe import $reg 2>&1 | Out-Null
+    Invoke-Native { & reg.exe import $reg } | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Could not restore the original Sysmon config from $reg." }
     Write-Step "Restored the client's original Sysmon config (service '$($state.sysmon.serviceName)')"
   } else {
@@ -55,7 +64,7 @@ if ($state.sysmon.preExisting) {
   }
 } elseif ($exe -and (Test-Path -LiteralPath $exe)) {
   if ($PSCmdlet.ShouldProcess($exe, 'Uninstall Sysmon')) {
-    $out = & $exe -u force 2>&1 | Out-String
+    $out = Invoke-Native { & $exe -u force } | Out-String
     if ($LASTEXITCODE -ne 0) { throw "Sysmon uninstall failed:`n$out" }
     Write-Step 'Uninstalled Sysmon'
   }
@@ -69,8 +78,8 @@ if ($state.logs) {
     $log = Get-WinEvent -ListLog $p.Name -ErrorAction SilentlyContinue
     if (-not $log) { continue }
     # Windows applies a smaller size only after the log is next cleared; nothing is lost now.
-    if ($log.MaximumSizeInBytes -ne $p.Value.maxBytesBefore) { & wevtutil.exe sl $p.Name "/ms:$($p.Value.maxBytesBefore)" | Out-Null }
-    if ($log.IsEnabled -and -not $p.Value.enabledBefore) { & wevtutil.exe sl $p.Name /e:false | Out-Null }
+    if ($log.MaximumSizeInBytes -ne $p.Value.maxBytesBefore) { Invoke-Native { & wevtutil.exe sl $p.Name "/ms:$($p.Value.maxBytesBefore)" } | Out-Null }
+    if ($log.IsEnabled -and -not $p.Value.enabledBefore) { Invoke-Native { & wevtutil.exe sl $p.Name /e:false } | Out-Null }
   }
   Write-Step 'Event log sizes restored'
 }
@@ -78,7 +87,7 @@ if ($state.logs) {
 # --- Audit policy -----------------------------------------------------------------------------
 if (-not $KeepAuditPolicy -and $state.audit -and $state.audit.backup) {
   if (Test-Path -LiteralPath $state.audit.backup) {
-    & auditpol.exe /restore "/file:$($state.audit.backup)" | Out-Null
+    Invoke-Native { & auditpol.exe /restore "/file:$($state.audit.backup)" } | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Warning 'auditpol /restore failed; check the audit policy manually.' } else { Write-Step 'Audit policy restored' }
   }
   foreach ($r in @($state.audit.registry)) {
@@ -97,8 +106,8 @@ foreach ($drive in Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3') {
   $dir = "$($drive.DeviceID)\$archiveName"
   if (-not $archiveName -or -not (Test-Path -LiteralPath $dir)) { continue }
   if ($RemoveArchive) {
-    & takeown.exe /f $dir /r /d y 2>&1 | Out-Null
-    & icacls.exe $dir /grant '*S-1-5-32-544:(OI)(CI)F' /t /c /q 2>&1 | Out-Null
+    Invoke-Native { & takeown.exe /f $dir /r /d y } | Out-Null
+    Invoke-Native { & icacls.exe $dir /grant '*S-1-5-32-544:(OI)(CI)F' /t /c /q } | Out-Null
     Remove-Item -LiteralPath $dir -Recurse -Force
     Write-Step "Removed $dir"
   } else {
