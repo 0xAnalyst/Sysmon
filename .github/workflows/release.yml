@@ -27,6 +27,7 @@ jobs:
           cp sysmonv9.xml dist/sysmon-windows.xml
           cp SysmonForLinux/config.xml dist/sysmon-linux.xml
           cp startupscript.bat dist/startupscript.bat
+          (cd dfir && zip -r ../dist/sysmon-dfir-kit.zip windows-ir.xml README.md scripts overlays tests -x '*.DS_Store')
           (cd dist && sha256sum * > SHA256SUMS)
 
       - name: Write release notes
@@ -35,6 +36,8 @@ jobs:
             echo "Tested against the latest Sysmon for Windows and Sysmon for Linux before publishing."
             echo
             echo "Tune these configs in the browser: https://0xanalyst.github.io/Sysmon/"
+            echo
+            echo "sysmon-dfir-kit.zip: incident-response config, deploy/collect/remove scripts and real-intrusion tests (see dfir/README.md)."
             echo
             echo "### Windows config changelog"
             echo '```'
