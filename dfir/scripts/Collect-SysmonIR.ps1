@@ -122,7 +122,9 @@ $os = Get-CimInstance Win32_OperatingSystem
 } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $dest 'host.json') -Encoding UTF8
 
 # --- Manifest and zip ------------------------------------------------------------------------
-Get-ChildItem -LiteralPath $dest -Recurse -File | ForEach-Object {
+# List the files first: the manifest is written into the same folder.
+$files = @(Get-ChildItem -LiteralPath $dest -Recurse -File)
+$files | ForEach-Object {
   [pscustomobject]@{ Path = $_.FullName.Substring($dest.Length + 1); Bytes = $_.Length; SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
 } | Export-Csv -LiteralPath (Join-Path $dest 'manifest-sha256.csv') -NoTypeInformation -Encoding UTF8
 
