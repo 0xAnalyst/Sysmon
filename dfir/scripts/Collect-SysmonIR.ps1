@@ -142,3 +142,6 @@ if ($state) {
 }
 Write-Step "Collection: $zip"
 Write-Step "SHA256: $zipHash"
+
+# Native tools leave their own exit codes behind (robocopy returns 1 on success); report success explicitly.
+exit 0

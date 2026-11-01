@@ -124,3 +124,6 @@ if (Test-Path -LiteralPath $collections) {
   Remove-Item -LiteralPath $StateDir -Force -Recurse
 }
 Write-Step 'Removal complete'
+
+# Native tools leave their own exit codes behind (robocopy returns 1 on success); report success explicitly.
+exit 0
