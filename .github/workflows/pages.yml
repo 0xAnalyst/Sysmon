@@ -47,7 +47,7 @@ jobs:
           # Ship the repo's current configs as the app's presets.
           cp sysmonv9.xml _site/presets/windows.xml
           cp SysmonForLinux/config.xml _site/presets/linux.xml
-          xmllint --noout _site/presets/*.xml
+          node webapp/scripts/check-xml.mjs _site/presets/*.xml
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5
