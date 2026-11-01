@@ -7,6 +7,7 @@ on:
       - 'webapp/**'
       - 'sysmonv9.xml'
       - 'SysmonForLinux/config.xml'
+      - 'dfir/windows-ir.xml'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -47,6 +48,7 @@ jobs:
           # Ship the repo's current configs as the app's presets.
           cp sysmonv9.xml _site/presets/windows.xml
           cp SysmonForLinux/config.xml _site/presets/linux.xml
+          cp dfir/windows-ir.xml _site/presets/windows-ir.xml
           node webapp/scripts/check-xml.mjs _site/presets/*.xml
           touch _site/.nojekyll
 

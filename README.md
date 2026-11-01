@@ -34,12 +34,16 @@ Download a tested version from [Releases](https://github.com/0xAnalyst/Sysmon/re
 | --- | --- | --- |
 | [`sysmonv9.xml`](sysmonv9.xml) | Windows | The main config. The builder's default preset. |
 | [`SysmonForLinux/config.xml`](SysmonForLinux/config.xml) | Linux | Sysmon for Linux config. The builder's Linux preset. |
+| [`dfir/windows-ir.xml`](dfir/) | Windows | Incident-response config with deploy, collect and remove scripts. |
 | [`archive/sysmonconfig.xml`](archive/) | Windows | The first config in this repo. Not maintained. |
 
 ### Windows (`sysmonv9.xml`)
 We added detections from [JPCERT's tool analysis result sheet](https://jpcertcc.github.io/ToolAnalysisResultSheet/). We also included most of [sysmon-modular](https://github.com/olafhartong/sysmon-modular) and some of the [Sigma Sysmon rules](https://github.com/SigmaHQ/sigma). Our target is to map most of MITRE ATT&CK and JPCERT in this config.
 
 You might need to add exclusions for software in your environment, such as antivirus, EDR or application whitelisting. Some events are noisy, such as the pipe events. The builder's exclusion wizard and log analysis are designed for exactly this.
+
+### Incident response (`dfir/`)
+A separate config and kit for IR engagements, designed from the 82 intrusions published by [The DFIR Report](https://thedfirreport.com/reports/). It logs every process, network connection, DNS query, driver and pipe, keeps copies of tools attackers delete, enables the Windows audit policy investigations rely on, and restores the client's settings at the end. CI checks it against 71 events reconstructed from those intrusions and runs the whole kit on a Windows machine. See [`dfir/README.md`](dfir/README.md).
 
 ### Linux (`SysmonForLinux/config.xml`)
 Based on the MSTIC Sysmon for Linux config, with added detections from Sigma Linux rules, GTFOBins and malware research. See [`SysmonForLinux/README.md`](SysmonForLinux/README.md).

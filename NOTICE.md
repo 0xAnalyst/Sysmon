@@ -4,8 +4,8 @@
 
 | Content | License |
 | --- | --- |
-| Sysmon configurations (`sysmonv9.xml`, `SysmonForLinux/config.xml`, `archive/`) | [Creative Commons Attribution 4.0](LICENSE) |
-| The config builder (`webapp/`), `startupscript.bat` and CI workflows | [MIT](webapp/LICENSE) |
+| Sysmon configurations (`sysmonv9.xml`, `SysmonForLinux/config.xml`, `dfir/windows-ir.xml`, `dfir/overlays/`, `archive/`) | [Creative Commons Attribution 4.0](LICENSE) |
+| The config builder (`webapp/`), `startupscript.bat`, `dfir/scripts/`, `dfir/tests/` and CI workflows | [MIT](webapp/LICENSE) |
 
 When you publish or redistribute a config from this repo, or one derived from it, keep the credit lines in its header comment.
 
@@ -21,6 +21,7 @@ The configurations build on the following work. Credit for individual rules is a
 | [JPCERT/CC Tool Analysis Result Sheet](https://jpcertcc.github.io/ToolAnalysisResultSheet/) | Windows detections | Research reference |
 | [microsoft/MSTIC-Sysmon](https://github.com/microsoft/MSTIC-Sysmon) | Base of the Linux config | MIT |
 | [GTFOBins](https://gtfobins.github.io/) | Linux detections | Research reference (GPL-3.0 project) |
+| [The DFIR Report](https://thedfirreport.com/reports/) | Design of `dfir/` and its test cases (behaviors summarized, no report text reproduced) | Research reference |
 | [MITRE ATT&CK](https://attack.mitre.org/) | Rule names and the builder's coverage data | [ATT&CK Terms of Use](https://attack.mitre.org/resources/legal-and-branding/terms-of-use/) |
 
 The builder's ATT&CK data (`webapp/js/attack-data.js`) is generated from [mitre-attack/attack-stix-data](https://github.com/mitre-attack/attack-stix-data). © The MITRE Corporation. This work is reproduced and distributed with the permission of The MITRE Corporation.

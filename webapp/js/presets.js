@@ -7,6 +7,8 @@ export const PRESETS = [
   // and a local server started at the repo root finds them one level up.
   { id: 'windows', label: '0xAnalyst Windows (MITRE / JPCERT)', files: ['presets/windows.xml', '../sysmonv9.xml'],
     note: 'Windows config from github.com/0xAnalyst/Sysmon, upgraded to the latest schema.' },
+  { id: 'windows-ir', label: '0xAnalyst Windows DFIR (incident response)', files: ['presets/windows-ir.xml', '../dfir/windows-ir.xml'],
+    note: 'Incident-response config from github.com/0xAnalyst/Sysmon (dfir/). Logs far more than the production config; add client exclusions as an overlay.' },
   { id: 'linux', label: '0xAnalyst Linux (MSTIC + Sigma + GTFOBins)', files: ['presets/linux.xml', '../SysmonForLinux/config.xml'],
     note: 'Sysmon for Linux config from github.com/0xAnalyst/Sysmon.' },
   { id: 'blank-windows', label: 'Blank Windows config', platform: 'windows' },
